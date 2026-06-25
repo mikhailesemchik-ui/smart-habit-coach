@@ -1,0 +1,23 @@
+name: smart_habit_coach
+description: "Smart Habit Coach - build habits that adapt to you."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^22.0.1
+  shared_preferences: ^2.5.5
+  supabase_flutter: ^2.15.0
+  timezone: ^0.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
