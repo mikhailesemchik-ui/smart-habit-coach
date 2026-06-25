@@ -175,7 +175,7 @@ refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
+enable_anonymous_sign_ins = true
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
@@ -415,7 +415,7 @@ enabled = true
 
 [functions.generate-habit]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/generate-habit/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -426,7 +426,7 @@ entrypoint = "./functions/generate-habit/index.ts"
 
 [functions.generate-weekly-review]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/generate-weekly-review/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
