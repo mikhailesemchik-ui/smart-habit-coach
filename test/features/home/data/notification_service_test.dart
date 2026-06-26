@@ -25,4 +25,38 @@ void main() {
       }
     });
   });
+
+  group('weekdayNotificationId', () {
+    test('returns different ids for different weekdays of the same habit', () {
+      final ids = List.generate(
+        7,
+        (i) => weekdayNotificationId('habit-1', i + 1),
+      );
+      expect(ids.toSet().length, 7);
+    });
+
+    test('returns different ids for different habits on the same weekday', () {
+      final a = weekdayNotificationId('habit-a', 1);
+      final b = weekdayNotificationId('habit-b', 1);
+      expect(a, isNot(b));
+    });
+
+    test('all ids fit within the 31-bit signed integer range', () {
+      for (final id in ['1', 'habit-xyz', 'long-habit-identifier-99']) {
+        for (var w = 1; w <= 7; w++) {
+          final result = weekdayNotificationId(id, w);
+          expect(result, greaterThanOrEqualTo(0));
+          expect(result, lessThanOrEqualTo(0x7fffffff));
+        }
+      }
+    });
+
+    test('ids do not collide with the base stableNotificationId', () {
+      const habitId = 'habit-1';
+      final base = stableNotificationId(habitId);
+      for (var w = 1; w <= 7; w++) {
+        expect(weekdayNotificationId(habitId, w), isNot(base));
+      }
+    });
+  });
 }

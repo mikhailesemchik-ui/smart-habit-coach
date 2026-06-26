@@ -226,8 +226,10 @@ class _CalendarDayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheduledCount = habits.where((h) => h.isScheduledFor(day)).length;
     final count = dailyCompletionCount(habits, day);
-    final allDone = habits.isNotEmpty && count == habits.length;
+    final hasScheduled = scheduledCount > 0;
+    final allDone = hasScheduled && count == scheduledCount;
     final anyDone = count > 0;
 
     final Color bg;
@@ -236,6 +238,10 @@ class _CalendarDayCell extends StatelessWidget {
     if (isFuture) {
       bg = Colors.transparent;
       textColor = theme.colorScheme.onSurface.withValues(alpha: 0.3);
+    } else if (!hasScheduled) {
+      // No habits scheduled on this date — neutral, non-interactive.
+      bg = Colors.transparent;
+      textColor = theme.colorScheme.onSurface.withValues(alpha: 0.45);
     } else if (allDone) {
       bg = theme.colorScheme.primary;
       textColor = theme.colorScheme.onPrimary;

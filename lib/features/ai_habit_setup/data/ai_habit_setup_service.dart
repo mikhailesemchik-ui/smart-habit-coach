@@ -34,7 +34,7 @@ class AiHabitSetupService implements AiHabitSuggestionSource {
       throw const AiHabitSetupException(_requestFailedMessage);
     }
 
-    return parseHabitSuggestionResponse(response.data);
+    return parseHabitSuggestionResponse(response.data, goalHint: goal);
   }
 }
 

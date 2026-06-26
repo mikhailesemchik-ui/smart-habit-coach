@@ -10,12 +10,17 @@ import 'package:smart_habit_coach/features/progress/presentation/progress_screen
 // Fixed reference: Friday, 26 June 2026.
 final _today = DateTime(2026, 6, 26);
 
-Habit _habit(String id, {Set<String> completedDates = const {}}) => Habit(
+Habit _habit(
+  String id, {
+  Set<String> completedDates = const {},
+  List<int>? weekdays,
+}) => Habit(
   id: id,
   title: 'Habit $id',
   scheduledTime: '08:00 AM',
   icon: Icons.fitness_center_outlined,
   completedDates: completedDates,
+  weekdays: weekdays ?? const [1, 2, 3, 4, 5, 6, 7],
 );
 
 Widget _calendarSheet(
@@ -272,6 +277,29 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+  });
+
+  // Test 12: calendar states ignore unscheduled habits for a given date.
+  // June 15, 2026 is Monday (weekday=1).
+  // A habit scheduled only for Wednesday should not affect June 15's state.
+  testWidgets('calendar cell ignores habits not scheduled for that date', (
+    tester,
+  ) async {
+    // habit '1' scheduled Wed only (weekday=3), completed on Jun 15
+    // (completion stored but not scheduled → should not count)
+    final habits = [
+      _habit('1', completedDates: {'2026-06-15'}, weekdays: [3]),
+    ];
+
+    await tester.pumpWidget(_calendarSheet(habits));
+    await tester.pump();
+
+    // Tap Jun 15 — it's a past date, sheet should open
+    await tester.tap(find.text('15'));
+    await tester.pumpAndSettle();
+
+    // No habits scheduled for Jun 15 (Monday), so sheet says "No habits scheduled"
+    expect(find.text('No habits scheduled'), findsOneWidget);
   });
 
   // Test 16: View calendar label does not overflow on a narrow Progress screen

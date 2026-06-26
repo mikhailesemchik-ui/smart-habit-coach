@@ -50,32 +50,53 @@ class DayHistorySheet extends StatefulWidget {
 
 class _DayHistorySheetState extends State<DayHistorySheet> {
   final _storage = HabitStorage();
-  late List<Habit> _habits;
+
+  /// Full habit list — used for saves and callbacks.
+  late List<Habit> _allHabits;
+
+  /// Habits scheduled for [widget.day] — displayed in the list.
+  late List<Habit> _scheduled;
+
   late final String _dateKey;
 
   @override
   void initState() {
     super.initState();
-    _habits = List.of(widget.habits);
+    _allHabits = List.of(widget.habits);
     _dateKey = dateKey(widget.day);
+    _scheduled = _allHabits.where((h) => h.isScheduledFor(widget.day)).toList();
   }
 
-  Future<void> _toggle(int index) async {
-    final updated = List<Habit>.of(_habits);
-    updated[index] = updated[index].toggleDate(_dateKey);
+  Future<void> _toggle(int scheduledIndex) async {
+    final habit = _scheduled[scheduledIndex];
+    final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final updated = List<Habit>.of(_allHabits);
+    updated[allIndex] = updated[allIndex].toggleDate(_dateKey);
     await _storage.saveHabits(updated);
     if (!mounted) return;
-    setState(() => _habits = updated);
+    setState(() {
+      _allHabits = updated;
+      _scheduled = _allHabits
+          .where((h) => h.isScheduledFor(widget.day))
+          .toList();
+    });
     widget.onHabitsChanged(updated);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final completedCount = _habits
+    final completedCount = _scheduled
         .where((h) => h.isCompletedOn(_dateKey))
         .length;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.75;
+
+    String? emptyMessage;
+    if (_allHabits.isEmpty) {
+      emptyMessage = 'No habits yet';
+    } else if (_scheduled.isEmpty) {
+      emptyMessage = 'No habits scheduled';
+    }
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
@@ -107,10 +128,10 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: _habits.isEmpty
+              child: _scheduled.isEmpty
                   ? const SizedBox.shrink()
                   : Text(
-                      '$completedCount of ${_habits.length} completed',
+                      '$completedCount of ${_scheduled.length} completed',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -118,12 +139,12 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
             ),
             const Divider(height: 1),
             Flexible(
-              child: _habits.isEmpty
+              child: emptyMessage != null
                   ? Padding(
                       padding: const EdgeInsets.all(24),
                       child: Center(
                         child: Text(
-                          'No habits yet',
+                          emptyMessage,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -132,9 +153,9 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
                     )
                   : ListView.builder(
                       shrinkWrap: true,
-                      itemCount: _habits.length,
+                      itemCount: _scheduled.length,
                       itemBuilder: (_, index) {
-                        final habit = _habits[index];
+                        final habit = _scheduled[index];
                         return CheckboxListTile(
                           secondary: Icon(habit.icon),
                           title: Text(habit.title),

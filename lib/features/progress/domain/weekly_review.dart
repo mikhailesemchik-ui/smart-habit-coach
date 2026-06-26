@@ -72,7 +72,9 @@ WeeklyReviewMetrics calculateWeeklyReviewMetrics(
   final days = last7Days(referenceDate);
   final dailyCounts = [
     for (final day in days)
-      habits.where((habit) => habit.isCompletedOn(dateKey(day))).length,
+      habits
+          .where((h) => h.isScheduledFor(day) && h.isCompletedOn(dateKey(day)))
+          .length,
   ];
   final completedCount = dailyCounts.fold(0, (sum, count) => sum + count);
 
@@ -96,7 +98,10 @@ WeeklyReviewMetrics calculateWeeklyReviewMetrics(
     strongestDay: strongestDay,
     weakestDay: weakestDay,
     completedCount: completedCount,
-    totalPossibleCount: habits.length * days.length,
+    totalPossibleCount: days.fold(
+      0,
+      (sum, day) => sum + habits.where((h) => h.isScheduledFor(day)).length,
+    ),
   );
 }
 

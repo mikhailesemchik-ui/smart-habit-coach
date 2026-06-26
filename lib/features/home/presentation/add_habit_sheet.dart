@@ -6,10 +6,16 @@ import '../domain/scheduled_time.dart';
 
 final _iconOptions = habitIconOptions.values.toList();
 
+const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 class AddHabitSheet extends StatefulWidget {
   final Habit? initialHabit;
 
-  const AddHabitSheet({super.key, this.initialHabit});
+  /// When non-null, the user must select exactly this many specific weekdays.
+  /// The SegmentedButton is hidden and save is blocked until the count matches.
+  final int? requiredDaysPerWeek;
+
+  const AddHabitSheet({super.key, this.initialHabit, this.requiredDaysPerWeek});
 
   @override
   State<AddHabitSheet> createState() => _AddHabitSheetState();
@@ -20,6 +26,9 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   late final TextEditingController _titleController;
   late TimeOfDay _selectedTime;
   late IconData _selectedIcon;
+  late bool _everyDay;
+  late Set<int> _selectedWeekdays;
+  bool _weekdayError = false;
 
   bool get _isEditing => widget.initialHabit != null;
 
@@ -32,6 +41,13 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
         ? (parseScheduledTime(initialHabit.scheduledTime) ?? TimeOfDay.now())
         : TimeOfDay.now();
     _selectedIcon = initialHabit?.icon ?? _iconOptions.first;
+
+    final wd = initialHabit?.weekdays ?? const [1, 2, 3, 4, 5, 6, 7];
+    _selectedWeekdays = Set<int>.of(wd);
+    _everyDay =
+        widget.requiredDaysPerWeek == null &&
+        _selectedWeekdays.length == 7 &&
+        _selectedWeekdays.containsAll([1, 2, 3, 4, 5, 6, 7]);
   }
 
   @override
@@ -57,8 +73,28 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     }
   }
 
+  String get _weekdayErrorText {
+    final req = widget.requiredDaysPerWeek;
+    if (req != null) {
+      return 'Select exactly $req ${req == 1 ? "day" : "days"}';
+    }
+    return 'Select at least one day';
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate()) return;
+
+    final req = widget.requiredDaysPerWeek;
+    if (!_everyDay &&
+        (_selectedWeekdays.isEmpty ||
+            (req != null && _selectedWeekdays.length != req))) {
+      setState(() => _weekdayError = true);
+      return;
+    }
+
+    final weekdays = _everyDay
+        ? const [1, 2, 3, 4, 5, 6, 7]
+        : (_selectedWeekdays.toList()..sort());
 
     final initialHabit = widget.initialHabit;
     final habit = Habit(
@@ -67,6 +103,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
       scheduledTime: _formatTime(_selectedTime),
       icon: _selectedIcon,
       completedDates: initialHabit?.completedDates ?? const {},
+      weekdays: weekdays,
     );
     Navigator.of(context).pop(habit);
   }
@@ -128,6 +165,68 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Text('Repeat', style: theme.textTheme.titleSmall),
+                if (widget.requiredDaysPerWeek != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Select exactly ${widget.requiredDaysPerWeek} '
+                    '${widget.requiredDaysPerWeek == 1 ? "day" : "days"}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (widget.requiredDaysPerWeek == null) ...[
+                  const SizedBox(height: 8),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: true, label: Text('Every day')),
+                      ButtonSegment(value: false, label: Text('Specific days')),
+                    ],
+                    selected: {_everyDay},
+                    onSelectionChanged: (selection) {
+                      setState(() {
+                        _everyDay = selection.first;
+                        _weekdayError = false;
+                      });
+                    },
+                  ),
+                ],
+                if (!_everyDay) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (var i = 1; i <= 7; i++)
+                        FilterChip(
+                          label: Text(_weekdayLabels[i - 1]),
+                          selected: _selectedWeekdays.contains(i),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedWeekdays.add(i);
+                              } else {
+                                _selectedWeekdays.remove(i);
+                              }
+                              _weekdayError = false;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  if (_weekdayError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        _weekdayErrorText,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,

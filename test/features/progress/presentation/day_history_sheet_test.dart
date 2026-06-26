@@ -6,17 +6,24 @@ import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/progress/presentation/day_history_sheet.dart';
 
 // Fixed past date used across all tests.
-final _day = DateTime(2026, 1, 15); // Thursday, Jan 15 2026
+// Jan 15, 2026 is a Thursday (weekday = 4).
+final _day = DateTime(2026, 1, 15);
 const _dateKey = '2026-01-15';
 const _priorDateKey = '2026-01-10';
 
-Habit _habit(String id, String title, {Set<String> completedDates = const {}}) {
+Habit _habit(
+  String id,
+  String title, {
+  Set<String> completedDates = const {},
+  List<int>? weekdays,
+}) {
   return Habit(
     id: id,
     title: title,
     scheduledTime: '08:00 AM',
     icon: Icons.fitness_center_outlined,
     completedDates: completedDates,
+    weekdays: weekdays ?? const [1, 2, 3, 4, 5, 6, 7],
   );
 }
 
@@ -130,6 +137,66 @@ void main() {
 
     expect(find.text('No habits yet'), findsOneWidget);
     expect(find.byType(CheckboxListTile), findsNothing);
+  });
+
+  // Test 10: DayHistorySheet filters by scheduled date.
+  // _day = Thursday (weekday=4). A Mon-only habit must not appear.
+  testWidgets('shows only habits scheduled for the selected date', (
+    tester,
+  ) async {
+    final habits = [
+      _habit('1', 'Thursday habit', weekdays: [4]), // Thu = weekday 4
+      _habit('2', 'Monday habit', weekdays: [1]), // Mon = weekday 1
+    ];
+
+    await tester.pumpWidget(_sheet(habits));
+    await tester.pump();
+
+    expect(find.text('Thursday habit'), findsOneWidget);
+    expect(find.text('Monday habit'), findsNothing);
+  });
+
+  // Test 11: no-scheduled-habits shows dedicated message.
+  testWidgets(
+    'shows "No habits scheduled" when habits exist but none for date',
+    (tester) async {
+      // _day is Thursday (weekday=4); schedule only for Monday
+      final habits = [
+        _habit('1', 'Gym', weekdays: [1]),
+      ];
+
+      await tester.pumpWidget(_sheet(habits));
+      await tester.pump();
+
+      expect(find.text('No habits scheduled'), findsOneWidget);
+      expect(find.text('No habits yet'), findsNothing);
+      expect(find.byType(CheckboxListTile), findsNothing);
+    },
+  );
+
+  // toggling an unscheduled habit's sibling updates the full list.
+  testWidgets('toggling a scheduled habit updates the full habit list', (
+    tester,
+  ) async {
+    List<Habit>? captured;
+    // habit '1' is for Thu (shown), habit '2' is for Mon (hidden)
+    final habits = [
+      _habit('1', 'Run', weekdays: [4]),
+      _habit('2', 'Read', weekdays: [1]),
+    ];
+
+    await tester.pumpWidget(
+      _sheet(habits, onHabitsChanged: (updated) => captured = updated),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+
+    // Callback provides the FULL list (both habits), not just scheduled
+    expect(captured, isNotNull);
+    expect(captured!.length, 2);
+    expect(captured!.first.completedDates, contains(_dateKey));
   });
 
   // Test 10: scrollable and does not overflow on a compact screen

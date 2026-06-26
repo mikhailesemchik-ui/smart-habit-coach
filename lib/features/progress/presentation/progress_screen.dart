@@ -302,8 +302,10 @@ class _DayIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheduledCount = habits.where((h) => h.isScheduledFor(day)).length;
     final count = dailyCompletionCount(habits, day);
-    final allDone = habits.isNotEmpty && count == habits.length;
+    final hasScheduled = scheduledCount > 0;
+    final allDone = hasScheduled && count == scheduledCount;
     final anyDone = count > 0;
 
     return InkWell(

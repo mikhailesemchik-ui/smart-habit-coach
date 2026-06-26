@@ -16,10 +16,18 @@ int stableNotificationId(String habitId) {
   return hash;
 }
 
-/// Schedules and cancels daily local reminders for habits.
+/// Generates a per-weekday notification ID that is stable, unique within
+/// the 31-bit signed integer space, and collision-safe across habits.
+///
+/// Formula: (stableId & 0x0FFFFFFF) << 3 | (weekday - 1)
+/// Max value: (268_435_455 << 3) | 6 = 2_147_483_646 (fits in 31 bits).
+int weekdayNotificationId(String habitId, int weekday) {
+  return (stableNotificationId(habitId) & 0x0FFFFFFF) << 3 | (weekday - 1);
+}
+
+/// Schedules and cancels weekday-aware local reminders for habits.
 /// This wraps `flutter_local_notifications` so it can be swapped or faked
-/// independently of the UI. Does not perform timezone-aware scheduling
-/// beyond the device's current local time offset.
+/// independently of the UI.
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -49,51 +57,75 @@ class NotificationService {
     }
   }
 
+  /// Replaces all existing reminders for [habit] with weekday-specific ones.
+  /// Calls [cancelHabitReminder] first to clear stale schedules (including
+  /// old daily-only IDs from before weekday scheduling was introduced).
   Future<void> scheduleHabitReminder(Habit habit) async {
     final time = parseScheduledTime(habit.scheduledTime);
     if (time == null) return;
 
-    try {
-      await _plugin.zonedSchedule(
-        id: stableNotificationId(habit.id),
-        title: habit.title,
-        body: 'Time to complete your habit',
-        scheduledDate: _nextInstanceOf(time),
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'habit_reminders',
-            'Habit reminders',
+    await cancelHabitReminder(habit.id);
+
+    for (final weekday in habit.weekdays) {
+      try {
+        await _plugin.zonedSchedule(
+          id: weekdayNotificationId(habit.id, weekday),
+          title: habit.title,
+          body: 'Time to complete your habit',
+          scheduledDate: _nextInstanceOf(time, weekday),
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'habit_reminders',
+              'Habit reminders',
+            ),
+            iOS: DarwinNotificationDetails(),
           ),
-          iOS: DarwinNotificationDetails(),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    } catch (error) {
-      debugPrint('NotificationService.scheduleHabitReminder failed: $error');
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+        );
+      } catch (error) {
+        debugPrint('NotificationService.scheduleHabitReminder failed: $error');
+      }
     }
   }
 
+  /// Cancels all reminders for [habitId]: the legacy base ID and all seven
+  /// weekday-specific IDs. This ensures a clean slate when rescheduling.
   Future<void> cancelHabitReminder(String habitId) async {
     try {
       await _plugin.cancel(id: stableNotificationId(habitId));
     } catch (error) {
       debugPrint('NotificationService.cancelHabitReminder failed: $error');
     }
+    for (var w = 1; w <= 7; w++) {
+      try {
+        await _plugin.cancel(id: weekdayNotificationId(habitId, w));
+      } catch (error) {
+        debugPrint('NotificationService.cancelHabitReminder failed: $error');
+      }
+    }
   }
 
-  tz.TZDateTime _nextInstanceOf(TimeOfDay time) {
+  /// Returns the next [tz.TZDateTime] that falls on [weekday] (ISO 1–7) at
+  /// [time]. Searches forward from today's candidate, at most 7 days ahead.
+  tz.TZDateTime _nextInstanceOf(TimeOfDay time, int weekday) {
     final now = DateTime.now();
-    var scheduled = DateTime(
+    var candidate = DateTime(
       now.year,
       now.month,
       now.day,
       time.hour,
       time.minute,
     );
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+    for (var i = 0; i < 7; i++) {
+      final d = candidate.add(Duration(days: i));
+      if (d.weekday == weekday && !d.isBefore(now)) {
+        return tz.TZDateTime.from(d, tz.UTC);
+      }
     }
-    return tz.TZDateTime.from(scheduled, tz.UTC);
+    // Fallback: jump ahead to the target weekday next week.
+    final daysAhead = (weekday - candidate.weekday + 7) % 7;
+    final next = candidate.add(Duration(days: daysAhead == 0 ? 7 : daysAhead));
+    return tz.TZDateTime.from(next, tz.UTC);
   }
 }

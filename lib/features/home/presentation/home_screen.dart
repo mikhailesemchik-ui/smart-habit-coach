@@ -187,8 +187,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final completedCount = _habits
-        .where((habit) => habit.isCompletedToday)
+    final today = DateTime.now();
+    final scheduledToday = _habits
+        .where((h) => h.isScheduledFor(today))
+        .toList();
+    final completedCount = scheduledToday
+        .where((h) => h.isCompletedToday)
         .length;
 
     return Scaffold(
@@ -200,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           _ProgressCard(
             completedCount: completedCount,
-            totalCount: _habits.length,
+            totalCount: scheduledToday.length,
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -212,7 +216,19 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          for (final habit in _habits)
+          if (_habits.isNotEmpty && scheduledToday.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Center(
+                child: Text(
+                  'No habits scheduled for today',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          for (final habit in scheduledToday)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _HabitCard(

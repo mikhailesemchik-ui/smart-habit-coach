@@ -10,7 +10,7 @@ const OPENAI_TIMEOUT_MS = 15_000;
 const DAILY_QUOTA_LIMIT = 10;
 const MAX_GOAL_LENGTH = 500;
 
-const SYSTEM_PROMPT = `You are a habit-coaching assistant. Suggest exactly one small, concrete daily habit that directly supports the user's stated goal. Reply only with the requested structured fields.
+const SYSTEM_PROMPT = `You are a habit-coaching assistant. Suggest exactly one small, concrete habit that directly supports the user's stated goal. Reply only with the requested structured fields.
 
 Goal-preservation rules:
 - Preserve explicit numbers, quantities, durations, frequencies, and times of day exactly as the user stated them. Never silently replace the user's measurable target with a different quantity.
@@ -19,16 +19,30 @@ Goal-preservation rules:
 - Keep suggestions practical and measurable.
 - Do not make medical claims. Do not state that any quantity is universally safe, optimal, or medically recommended.
 
-Examples (goal-preservation style only — do not reuse these numbers or phrases in your actual output):
+Weekday scheduling rules:
+- Map explicit weekday names to ISO integers: 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday.
+- "weekdays" means [1,2,3,4,5]. "weekends" means [6,7]. "daily", "every day", or no specific days means [1,2,3,4,5,6,7] with requiredDaysPerWeek=null.
+- Do not invent specific weekdays the user did not mention.
+- When the user states only a frequency count ("twice a week", "3 times a week") WITHOUT naming specific days: set requiredDaysPerWeek to the count and set weekdays to null. Do NOT guess which days.
+- When the user names explicit days, set weekdays to those days and requiredDaysPerWeek to null.
+- When the user states a count AND names explicit days: if the count matches the number of named days, set weekdays and requiredDaysPerWeek=null. If there is a mismatch, set both weekdays (partial list) and requiredDaysPerWeek to the stated count.
+
+Examples (style only — do not reuse these numbers or phrases in your actual output):
 
 User: drink 3 liters of water per day
-Output: {"title":"Morning glass — first step toward 3 L daily","reason":"Starting with a glass of water each morning begins working toward your 3-litre daily target. Space the remaining amount across the day to fit your routine.","scheduledTime":"07:30","iconId":"water"}
+Output: {"title":"Morning glass","reason":"...","scheduledTime":"07:30","iconId":"water","weekdays":[1,2,3,4,5,6,7],"requiredDaysPerWeek":null}
 
-User: read 30 minutes every evening
-Output: {"title":"Read for 30 minutes this evening","reason":"An evening reading session directly matches your 30-minute daily goal and builds a consistent wind-down routine.","scheduledTime":"20:30","iconId":"book"}
+User: work out Monday Wednesday Friday
+Output: {"title":"Strength workout","reason":"...","scheduledTime":"07:00","iconId":"fitness","weekdays":[1,3,5],"requiredDaysPerWeek":null}
 
-User: walk 10,000 steps daily
-Output: {"title":"Midday walk toward 10,000 steps","reason":"A lunchtime walk is a practical anchor for your 10,000-step goal. Add shorter walks in the morning or evening to reach the daily total.","scheduledTime":"12:00","iconId":"walk"}`;
+User: go to the gym twice a week
+Output: {"title":"Gym session","reason":"...","scheduledTime":"07:00","iconId":"fitness","weekdays":null,"requiredDaysPerWeek":2}
+
+User: read on weekdays
+Output: {"title":"Read for 20 minutes","reason":"...","scheduledTime":"20:00","iconId":"book","weekdays":[1,2,3,4,5],"requiredDaysPerWeek":null}
+
+User: go for a walk every weekend
+Output: {"title":"Weekend walk","reason":"...","scheduledTime":"09:00","iconId":"walk","weekdays":[6,7],"requiredDaysPerWeek":null}`;
 
 // Must stay in sync with habitIconOptions in
 // lib/features/home/domain/habit_icons.dart
@@ -55,6 +69,8 @@ interface HabitSuggestionPayload {
   reason: string;
   scheduledTime: string;
   iconId: IconId;
+  weekdays: number[] | null;
+  requiredDaysPerWeek: number | null;
 }
 
 interface QuotaResult {
@@ -90,6 +106,21 @@ function isValidIconId(value: unknown): value is IconId {
   );
 }
 
+function normalizeWeekdays(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [1, 2, 3, 4, 5, 6, 7];
+  const valid = [
+    ...new Set(
+      raw.filter((d): d is number => Number.isInteger(d) && d >= 1 && d <= 7),
+    ),
+  ].sort((a, b) => a - b);
+  return valid.length > 0 ? valid : [1, 2, 3, 4, 5, 6, 7];
+}
+
+function parseRequiredDays(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isInteger(raw)) return null;
+  return raw >= 1 && raw <= 7 ? raw : null;
+}
+
 function parseSuggestion(raw: unknown): HabitSuggestionPayload | null {
   if (typeof raw !== "object" || raw === null) return null;
   const candidate = raw as Record<string, unknown>;
@@ -100,11 +131,17 @@ function parseSuggestion(raw: unknown): HabitSuggestionPayload | null {
   if (!isValidScheduledTime(scheduledTime)) return null;
   if (!isValidIconId(iconId)) return null;
 
+  const normalizedWeekdays = candidate.weekdays === null
+    ? null
+    : normalizeWeekdays(candidate.weekdays);
+
   return {
     title: title.trim(),
     reason: reason.trim(),
     scheduledTime,
     iconId,
+    weekdays: normalizedWeekdays,
+    requiredDaysPerWeek: parseRequiredDays(candidate.requiredDaysPerWeek),
   };
 }
 
@@ -168,8 +205,36 @@ async function callOpenAi(goal: string, apiKey: string): Promise<unknown> {
                   description: "24-hour time of day in HH:mm format",
                 },
                 iconId: { type: "string", enum: ICON_IDS },
+                weekdays: {
+                  anyOf: [
+                    {
+                      type: "array",
+                      items: { type: "integer" },
+                      description:
+                        "ISO weekday integers 1=Mon…7=Sun. Null when only a frequency count was provided.",
+                    },
+                    { type: "null" },
+                  ],
+                },
+                requiredDaysPerWeek: {
+                  anyOf: [
+                    {
+                      type: "integer",
+                      description:
+                        "How many days per week the user requested, when no specific days were named.",
+                    },
+                    { type: "null" },
+                  ],
+                },
               },
-              required: ["title", "reason", "scheduledTime", "iconId"],
+              required: [
+                "title",
+                "reason",
+                "scheduledTime",
+                "iconId",
+                "weekdays",
+                "requiredDaysPerWeek",
+              ],
               additionalProperties: false,
             },
           },
