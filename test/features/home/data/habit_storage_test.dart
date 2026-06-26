@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/features/home/data/habit_storage.dart';
+import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 
 void main() {
@@ -43,6 +44,29 @@ void main() {
       expect(loaded[1].completedDates, {'2026-06-19'});
     });
 
+    test(
+      'saveHabits then loadHabits preserves today as a completion date',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = HabitStorage();
+        final today = todayKey();
+        final habit = Habit(
+          id: '1',
+          title: 'Drink water',
+          scheduledTime: '08:00 AM',
+          icon: Icons.local_drink_outlined,
+          completedDates: {today},
+        );
+
+        await storage.saveHabits([habit]);
+        final loaded = await storage.loadHabits();
+
+        expect(loaded, isNotNull);
+        expect(loaded!.first.completedDates, contains(today));
+        expect(loaded.first.isCompletedToday, isTrue);
+      },
+    );
+
     test('loadHabits returns null for corrupted saved data', () async {
       SharedPreferences.setMockInitialValues({'habits': 'not valid json'});
 
@@ -57,6 +81,18 @@ void main() {
       final result = await HabitStorage().loadHabits();
 
       expect(result, isNull);
+    });
+
+    test('loadHabits on corrupted data leaves storage unmodified', () async {
+      const corrupt = 'not-valid-json{[}';
+      SharedPreferences.setMockInitialValues({'habits': corrupt});
+
+      final result = await HabitStorage().loadHabits();
+
+      expect(result, isNull);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('habits'), corrupt);
     });
   });
 }

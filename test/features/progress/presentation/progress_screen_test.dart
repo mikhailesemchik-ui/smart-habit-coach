@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_exception.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_source.dart';
@@ -19,6 +22,31 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
+
+  testWidgets(
+    'Progress reads saved completion dates and shows the correct rate',
+    (tester) async {
+      final today = todayKey();
+      SharedPreferences.setMockInitialValues({
+        'habits': jsonEncode([
+          {
+            'id': '99',
+            'title': 'My persisted habit',
+            'scheduledTime': '08:00 AM',
+            'iconId': 'water',
+            'completedDates': [today],
+          },
+        ]),
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
+      await tester.pumpAndSettle();
+
+      // 1 habit, 1 completion out of 7 days → 1/7 ≈ 14%.
+      // Would show 0% if sample habits (no completions) were used instead.
+      expect(find.text('14% completion rate'), findsOneWidget);
+    },
+  );
 
   testWidgets('Weekly review opens from the Progress screen', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));

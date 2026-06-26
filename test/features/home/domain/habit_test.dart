@@ -51,6 +51,23 @@ void main() {
     expect(toggledOff.isCompletedToday, isFalse);
   });
 
+  test('toggleDate off removes today only and leaves prior dates intact', () {
+    const prior = '2025-01-01';
+    final today = todayKey();
+    final habit = Habit(
+      id: '1',
+      title: 'Drink water',
+      scheduledTime: '08:00 AM',
+      icon: Icons.local_drink_outlined,
+      completedDates: {prior, today},
+    );
+
+    final toggled = habit.toggleDate(today);
+
+    expect(toggled.isCompletedToday, isFalse);
+    expect(toggled.completedDates, {prior});
+  });
+
   group('legacy isCompleted migration', () {
     test('isCompleted=true migrates to a completedDates entry for today', () {
       final json = {

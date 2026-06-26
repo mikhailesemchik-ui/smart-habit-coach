@@ -59,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadHabits() async {
     final savedHabits = await _storage.loadHabits();
+    if (!mounted) return;
     setState(() {
       _habits = savedHabits ?? sampleHabits();
       _isLoading = false;

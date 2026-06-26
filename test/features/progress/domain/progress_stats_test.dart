@@ -17,6 +17,59 @@ void main() {
   // Friday, June 19, 2026.
   final reference = DateTime(2026, 6, 19);
 
+  group('dailyCompletionCount', () {
+    test('returns 0 for an empty habit list', () {
+      expect(dailyCompletionCount([], reference), 0);
+    });
+
+    test('returns 0 when no habits were completed on that day', () {
+      final habits = [_habit('1', {}), _habit('2', {})];
+      expect(dailyCompletionCount(habits, reference), 0);
+    });
+
+    test('counts only habits completed on the exact given day', () {
+      final habits = [
+        _habit('1', {'2026-06-19'}),
+        _habit('2', {'2026-06-18'}),
+      ];
+      expect(dailyCompletionCount(habits, reference), 1);
+    });
+
+    test('returns total count when all habits completed on that day', () {
+      final habits = [
+        _habit('1', {'2026-06-19'}),
+        _habit('2', {'2026-06-19'}),
+      ];
+      expect(dailyCompletionCount(habits, reference), 2);
+    });
+  });
+
+  group('dailyCompletionPercentage', () {
+    test('returns 0 for an empty habit list', () {
+      expect(dailyCompletionPercentage([], reference), 0);
+    });
+
+    test('returns 0.0 when no habits completed', () {
+      expect(dailyCompletionPercentage([_habit('1', {})], reference), 0.0);
+    });
+
+    test('returns 0.5 when half of habits completed', () {
+      final habits = [
+        _habit('1', {'2026-06-19'}),
+        _habit('2', {}),
+      ];
+      expect(dailyCompletionPercentage(habits, reference), 0.5);
+    });
+
+    test('returns 1.0 when all habits completed', () {
+      final habits = [
+        _habit('1', {'2026-06-19'}),
+        _habit('2', {'2026-06-19'}),
+      ];
+      expect(dailyCompletionPercentage(habits, reference), 1.0);
+    });
+  });
+
   group('weeklyCompletionRate', () {
     test('returns 0 when there are no habits', () {
       expect(weeklyCompletionRate([], reference), 0);

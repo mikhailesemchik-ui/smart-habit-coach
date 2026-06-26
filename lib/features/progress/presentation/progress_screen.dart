@@ -29,6 +29,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   Future<void> _loadHabits() async {
     final savedHabits = await _storage.loadHabits();
+    if (!mounted) return;
     setState(() {
       _habits = savedHabits ?? sampleHabits();
       _isLoading = false;
@@ -228,7 +229,9 @@ class _DayIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final completed = allHabitsCompletedOn(habits, day);
+    final count = dailyCompletionCount(habits, day);
+    final allDone = habits.isNotEmpty && count == habits.length;
+    final anyDone = count > 0;
 
     return Column(
       children: [
@@ -239,10 +242,12 @@ class _DayIndicator extends StatelessWidget {
         const SizedBox(height: 6),
         CircleAvatar(
           radius: 14,
-          backgroundColor: completed
+          backgroundColor: allDone
               ? theme.colorScheme.primary
+              : anyDone
+              ? theme.colorScheme.primary.withValues(alpha: 0.35)
               : theme.colorScheme.surfaceContainerHighest,
-          child: completed
+          child: allDone
               ? Icon(Icons.check, size: 16, color: theme.colorScheme.onPrimary)
               : null,
         ),

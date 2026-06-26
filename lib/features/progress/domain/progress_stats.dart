@@ -1,6 +1,19 @@
 import '../../home/domain/date_key.dart';
 import '../../home/domain/habit.dart';
 
+/// Number of habits completed on [day].
+int dailyCompletionCount(List<Habit> habits, DateTime day) {
+  final key = dateKey(day);
+  return habits.where((h) => h.isCompletedOn(key)).length;
+}
+
+/// Fraction of habits completed on [day], in the range [0, 1].
+/// Returns 0 when [habits] is empty.
+double dailyCompletionPercentage(List<Habit> habits, DateTime day) {
+  if (habits.isEmpty) return 0;
+  return dailyCompletionCount(habits, day) / habits.length;
+}
+
 List<DateTime> last7Days(DateTime referenceDate) {
   final today = DateTime(
     referenceDate.year,
