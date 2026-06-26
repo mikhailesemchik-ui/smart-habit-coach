@@ -1,8 +1,13 @@
 // Setup type definitions for built-in Supabase Runtime APIs
 import "@supabase/functions-js/edge-runtime.d.ts";
+import {
+  isDeveloperBypass,
+  parseUserIdFromJwt,
+} from "../_shared/quota_bypass.ts";
 
 const OPENAI_MODEL = "gpt-4o-mini";
 const OPENAI_TIMEOUT_MS = 15_000;
+const DAILY_QUOTA_LIMIT = 3;
 
 const MAX_STREAK = 3650; // ~10 years; guards against bogus client input
 const MAX_COUNT = 100_000;
@@ -74,6 +79,13 @@ interface AiWeeklyReviewPayload {
   recommendation: string;
 }
 
+interface QuotaResult {
+  allowed: boolean;
+  used: number;
+  limit: number;
+  resetsAt: string;
+}
+
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -85,8 +97,9 @@ function errorResponse(
   status: number,
   code: string,
   message: string,
+  metadata?: Record<string, unknown>,
 ): Response {
-  return jsonResponse({ error: { code, message } }, status);
+  return jsonResponse({ error: { code, message, ...metadata } }, status);
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -319,6 +332,66 @@ async function callOpenAi(
   }
 }
 
+function parseQuotaResult(raw: unknown): QuotaResult | null {
+  if (!Array.isArray(raw) || raw.length !== 1) return null;
+  const candidate = raw[0];
+  if (typeof candidate !== "object" || candidate === null) return null;
+
+  const record = candidate as Record<string, unknown>;
+  const allowed = record.allowed;
+  const used = record.used;
+  const limit = record.limit;
+  const resetsAt = record.resets_at;
+
+  if (typeof allowed !== "boolean") return null;
+  if (!Number.isInteger(used) || typeof used !== "number") return null;
+  if (!Number.isInteger(limit) || typeof limit !== "number") return null;
+  if (typeof resetsAt !== "string" || resetsAt.length === 0) return null;
+
+  return { allowed, used, limit, resetsAt };
+}
+
+async function consumeQuota(req: Request): Promise<QuotaResult> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ??
+    Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+  const authorization = req.headers.get("Authorization");
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase environment is not configured.");
+  }
+  if (!authorization) {
+    throw new Error("Authorization header is missing.");
+  }
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/consume_ai_quota`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": authorization,
+        "apikey": supabaseAnonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target_function_name: "generate-weekly-review",
+        daily_limit: DAILY_QUOTA_LIMIT,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Quota check failed with status ${response.status}.`);
+  }
+
+  const quota = parseQuotaResult(await response.json());
+  if (quota === null) {
+    throw new Error("Quota check returned an unexpected response.");
+  }
+
+  return quota;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -356,6 +429,41 @@ Deno.serve(async (req: Request) => {
       "configuration_error",
       "The service is not configured correctly.",
     );
+  }
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const userId = parseUserIdFromJwt(authHeader);
+  const bypassQuota = userId !== null &&
+    isDeveloperBypass(userId, Deno.env.get("AI_QUOTA_BYPASS_USER_IDS"));
+
+  if (!bypassQuota) {
+    let quota: QuotaResult;
+    try {
+      quota = await consumeQuota(req);
+    } catch (error) {
+      console.error(
+        "Quota check failed:",
+        error instanceof Error ? error.message : "unknown error",
+      );
+      return errorResponse(
+        500,
+        "quota_check_failed",
+        "Could not process this request right now.",
+      );
+    }
+
+    if (!quota.allowed) {
+      return errorResponse(
+        429,
+        "quota_exceeded",
+        "Daily AI limit reached. Please try again tomorrow.",
+        {
+          used: quota.used,
+          limit: quota.limit,
+          resetsAt: quota.resetsAt,
+        },
+      );
+    }
   }
 
   let openAiPayload: unknown;

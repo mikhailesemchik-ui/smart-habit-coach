@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smart_habit_coach/features/progress/data/ai_weekly_review_service.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_exception.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_source.dart';
@@ -151,6 +152,27 @@ void main() {
       expect(find.text('Network unavailable.'), findsNothing);
       expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, 'Close'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Falls back to the local review with the quota notice when the daily limit is reached',
+    (tester) async {
+      final service = _FakeAiWeeklyReviewSource.failure(
+        const AiWeeklyReviewException(
+          aiWeeklyReviewQuotaMessage,
+          isQuotaExceeded: true,
+        ),
+      );
+      await pumpSheet(tester, service);
+      await tester.pumpAndSettle();
+
+      expect(find.text(localReview.summary), findsOneWidget);
+      expect(find.text(localReview.recommendation), findsOneWidget);
+      expect(find.text(aiWeeklyReviewQuotaMessage), findsOneWidget);
+      expect(find.textContaining('Network unavailable'), findsNothing);
+      expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

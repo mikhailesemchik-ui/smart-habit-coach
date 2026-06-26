@@ -8,6 +8,8 @@ import '../domain/weekly_review.dart';
 
 const _requestFailedMessage =
     "Couldn't generate an AI review right now. Please try again.";
+const aiWeeklyReviewQuotaMessage =
+    "Today's AI review limit has been reached. Showing your local review instead.";
 
 /// Calls the `generate-weekly-review` Supabase Edge Function to turn
 /// locally calculated [WeeklyReviewMetrics] into an [AiWeeklyReview].
@@ -35,10 +37,28 @@ class AiWeeklyReviewService implements AiWeeklyReviewSource {
             },
           )
           .timeout(const Duration(seconds: 20));
+    } on FunctionException catch (e) {
+      if (isAiWeeklyReviewQuotaExceeded(e.status, e.details)) {
+        throw const AiWeeklyReviewException(
+          aiWeeklyReviewQuotaMessage,
+          isQuotaExceeded: true,
+        );
+      }
+      throw const AiWeeklyReviewException(_requestFailedMessage);
     } catch (_) {
       throw const AiWeeklyReviewException(_requestFailedMessage);
     }
 
     return parseAiWeeklyReviewResponse(response.data);
   }
+}
+
+bool isAiWeeklyReviewQuotaExceeded(int status, Object? data) {
+  if (status == 429) return true;
+  if (data is! Map) return false;
+
+  final error = data['error'];
+  if (error is! Map) return false;
+
+  return error['code'] == 'quota_exceeded';
 }

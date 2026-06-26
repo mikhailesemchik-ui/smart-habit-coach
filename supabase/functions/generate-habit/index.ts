@@ -1,9 +1,34 @@
 // Setup type definitions for built-in Supabase Runtime APIs
 import "@supabase/functions-js/edge-runtime.d.ts";
+import {
+  isDeveloperBypass,
+  parseUserIdFromJwt,
+} from "../_shared/quota_bypass.ts";
 
 const OPENAI_MODEL = "gpt-4o-mini";
 const OPENAI_TIMEOUT_MS = 15_000;
+const DAILY_QUOTA_LIMIT = 10;
 const MAX_GOAL_LENGTH = 500;
+
+const SYSTEM_PROMPT = `You are a habit-coaching assistant. Suggest exactly one small, concrete daily habit that directly supports the user's stated goal. Reply only with the requested structured fields.
+
+Goal-preservation rules:
+- Preserve explicit numbers, quantities, durations, frequencies, and times of day exactly as the user stated them. Never silently replace the user's measurable target with a different quantity.
+- The title must clearly relate to the original goal. If the user names a quantity or duration, the title must reflect it or identify the habit as a first step toward that specific target.
+- If one app reminder cannot represent the whole goal (for example, a daily total meant to be spread across the day), generate a concrete first-step habit and state in the reason that it is the starting point for the user's stated target. Do not invent a replacement target.
+- Keep suggestions practical and measurable.
+- Do not make medical claims. Do not state that any quantity is universally safe, optimal, or medically recommended.
+
+Examples (goal-preservation style only — do not reuse these numbers or phrases in your actual output):
+
+User: drink 3 liters of water per day
+Output: {"title":"Morning glass — first step toward 3 L daily","reason":"Starting with a glass of water each morning begins working toward your 3-litre daily target. Space the remaining amount across the day to fit your routine.","scheduledTime":"07:30","iconId":"water"}
+
+User: read 30 minutes every evening
+Output: {"title":"Read for 30 minutes this evening","reason":"An evening reading session directly matches your 30-minute daily goal and builds a consistent wind-down routine.","scheduledTime":"20:30","iconId":"book"}
+
+User: walk 10,000 steps daily
+Output: {"title":"Midday walk toward 10,000 steps","reason":"A lunchtime walk is a practical anchor for your 10,000-step goal. Add shorter walks in the morning or evening to reach the daily total.","scheduledTime":"12:00","iconId":"walk"}`;
 
 // Must stay in sync with habitIconOptions in
 // lib/features/home/domain/habit_icons.dart
@@ -32,6 +57,13 @@ interface HabitSuggestionPayload {
   iconId: IconId;
 }
 
+interface QuotaResult {
+  allowed: boolean;
+  used: number;
+  limit: number;
+  resetsAt: string;
+}
+
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -43,8 +75,9 @@ function errorResponse(
   status: number,
   code: string,
   message: string,
+  metadata?: Record<string, unknown>,
 ): Response {
-  return jsonResponse({ error: { code, message } }, status);
+  return jsonResponse({ error: { code, message, ...metadata } }, status);
 }
 
 function isValidScheduledTime(value: unknown): value is string {
@@ -117,17 +150,8 @@ async function callOpenAi(goal: string, apiKey: string): Promise<unknown> {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         input: [
-          {
-            role: "system",
-            content:
-              "You are a habit-coaching assistant. Suggest exactly one " +
-              "small, concrete daily habit that helps the user reach their " +
-              "stated goal. Reply only with the requested structured fields.",
-          },
-          {
-            role: "user",
-            content: goal,
-          },
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: goal },
         ],
         text: {
           format: {
@@ -162,6 +186,66 @@ async function callOpenAi(goal: string, apiKey: string): Promise<unknown> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function parseQuotaResult(raw: unknown): QuotaResult | null {
+  if (!Array.isArray(raw) || raw.length !== 1) return null;
+  const candidate = raw[0];
+  if (typeof candidate !== "object" || candidate === null) return null;
+
+  const record = candidate as Record<string, unknown>;
+  const allowed = record.allowed;
+  const used = record.used;
+  const limit = record.limit;
+  const resetsAt = record.resets_at;
+
+  if (typeof allowed !== "boolean") return null;
+  if (!Number.isInteger(used) || typeof used !== "number") return null;
+  if (!Number.isInteger(limit) || typeof limit !== "number") return null;
+  if (typeof resetsAt !== "string" || resetsAt.length === 0) return null;
+
+  return { allowed, used, limit, resetsAt };
+}
+
+async function consumeQuota(req: Request): Promise<QuotaResult> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ??
+    Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+  const authorization = req.headers.get("Authorization");
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase environment is not configured.");
+  }
+  if (!authorization) {
+    throw new Error("Authorization header is missing.");
+  }
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/consume_ai_quota`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": authorization,
+        "apikey": supabaseAnonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target_function_name: "generate-habit",
+        daily_limit: DAILY_QUOTA_LIMIT,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Quota check failed with status ${response.status}.`);
+  }
+
+  const quota = parseQuotaResult(await response.json());
+  if (quota === null) {
+    throw new Error("Quota check returned an unexpected response.");
+  }
+
+  return quota;
 }
 
 Deno.serve(async (req: Request) => {
@@ -218,6 +302,41 @@ Deno.serve(async (req: Request) => {
       "configuration_error",
       "The service is not configured correctly.",
     );
+  }
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const userId = parseUserIdFromJwt(authHeader);
+  const bypassQuota = userId !== null &&
+    isDeveloperBypass(userId, Deno.env.get("AI_QUOTA_BYPASS_USER_IDS"));
+
+  if (!bypassQuota) {
+    let quota: QuotaResult;
+    try {
+      quota = await consumeQuota(req);
+    } catch (error) {
+      console.error(
+        "Quota check failed:",
+        error instanceof Error ? error.message : "unknown error",
+      );
+      return errorResponse(
+        500,
+        "quota_check_failed",
+        "Could not process this request right now.",
+      );
+    }
+
+    if (!quota.allowed) {
+      return errorResponse(
+        429,
+        "quota_exceeded",
+        "Daily AI limit reached. Please try again tomorrow.",
+        {
+          used: quota.used,
+          limit: quota.limit,
+          resetsAt: quota.resetsAt,
+        },
+      );
+    }
   }
 
   let openAiPayload: unknown;

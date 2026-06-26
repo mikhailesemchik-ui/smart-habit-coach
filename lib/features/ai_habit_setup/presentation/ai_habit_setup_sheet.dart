@@ -44,6 +44,7 @@ class _AiHabitSetupSheetState extends State<AiHabitSetupSheet> {
 
   Future<void> _generatePlan() async {
     if (_status == _SuggestionStatus.loading) return;
+    FocusScope.of(context).unfocus();
 
     setState(() {
       _status = _SuggestionStatus.loading;
@@ -96,7 +97,8 @@ class _AiHabitSetupSheetState extends State<AiHabitSetupSheet> {
 
     return SafeArea(
       top: false,
-      child: Padding(
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.only(
           left: 16,
           right: 16,

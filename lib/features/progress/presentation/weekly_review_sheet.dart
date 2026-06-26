@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../data/ai_weekly_review_service.dart';
 import '../domain/ai_weekly_review.dart';
+import '../domain/ai_weekly_review_exception.dart';
 import '../domain/ai_weekly_review_source.dart';
 import '../domain/weekly_review.dart';
 
 enum _ReviewStatus { loading, success, error }
 
-const _fallbackNotice =
+const _defaultFallbackNotice =
     "Showing your local weekly review — AI insights aren't available right now.";
 
 class WeeklyReviewSheet extends StatefulWidget {
@@ -32,6 +33,7 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
 
   _ReviewStatus _status = _ReviewStatus.loading;
   AiWeeklyReview? _aiReview;
+  String _fallbackNotice = _defaultFallbackNotice;
   bool _isFetching = false;
 
   @override
@@ -52,10 +54,20 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
         _aiReview = aiReview;
         _status = _ReviewStatus.success;
       });
+    } on AiWeeklyReviewException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aiReview = null;
+        _fallbackNotice = e.isQuotaExceeded
+            ? e.message
+            : _defaultFallbackNotice;
+        _status = _ReviewStatus.error;
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _aiReview = null;
+        _fallbackNotice = _defaultFallbackNotice;
         _status = _ReviewStatus.error;
       });
     } finally {

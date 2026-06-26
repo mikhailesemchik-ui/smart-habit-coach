@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smart_habit_coach/features/ai_habit_setup/data/ai_habit_setup_service.dart';
 import 'package:smart_habit_coach/features/ai_habit_setup/domain/ai_habit_setup_exception.dart';
 import 'package:smart_habit_coach/features/ai_habit_setup/domain/ai_habit_suggestion_source.dart';
 import 'package:smart_habit_coach/features/ai_habit_setup/domain/habit_suggestion.dart';
@@ -198,6 +199,44 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('A quota failure shows the daily AI habit limit message', (
+    tester,
+  ) async {
+    final service = _FakeAiHabitSuggestionSource.failure(
+      const AiHabitSetupException(aiHabitSetupQuotaMessage),
+    );
+    await pumpSheet(tester, service);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Generate plan'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(aiHabitSetupQuotaMessage), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'No overflow and all actions reachable at 360×640 with keyboard inset',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.reset);
+
+      final service = _FakeAiHabitSuggestionSource.success(suggestion);
+      await pumpSheet(tester, service);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Generate plan'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Drink more water'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Add habit'), findsOneWidget);
+    },
+  );
 
   testWidgets('Retry after a failure can succeed', (tester) async {
     var attempt = 0;
