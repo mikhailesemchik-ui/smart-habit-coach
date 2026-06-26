@@ -6,6 +6,7 @@ import '../../home/domain/sample_habits.dart';
 import '../domain/progress_stats.dart';
 import '../domain/weekly_review.dart';
 import 'day_history_sheet.dart';
+import 'habit_history_calendar_sheet.dart';
 import 'weekly_review_sheet.dart';
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -35,6 +36,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
       _habits = savedHabits ?? sampleHabits();
       _isLoading = false;
     });
+  }
+
+  void _openCalendar() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => HabitHistoryCalendarSheet(
+        habits: _habits,
+        today: DateTime.now(),
+        onHabitsChanged: (updated) {
+          if (!mounted) return;
+          setState(() => _habits = updated);
+        },
+      ),
+    );
   }
 
   void _openDayHistory(DateTime day) {
@@ -100,6 +116,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
             habits: _habits,
             days: last7Days(now),
             onDayTap: _openDayHistory,
+            onOpenCalendar: _openCalendar,
           ),
           const SizedBox(height: 16),
           _WeeklyReviewCard(onOpenReview: _openWeeklyReview),
@@ -217,11 +234,13 @@ class _WeekSummary extends StatelessWidget {
   final List<Habit> habits;
   final List<DateTime> days;
   final void Function(DateTime) onDayTap;
+  final VoidCallback onOpenCalendar;
 
   const _WeekSummary({
     required this.habits,
     required this.days,
     required this.onDayTap,
+    required this.onOpenCalendar,
   });
 
   @override
@@ -234,7 +253,22 @@ class _WeekSummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('This week', style: theme.textTheme.titleMedium),
+            Row(
+              children: [
+                Flexible(
+                  child: Text('This week', style: theme.textTheme.titleMedium),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: onOpenCalendar,
+                  child: const Text('View calendar'),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
