@@ -5,6 +5,7 @@ import '../../home/domain/habit.dart';
 import '../../home/domain/sample_habits.dart';
 import '../domain/progress_stats.dart';
 import '../domain/weekly_review.dart';
+import 'day_history_sheet.dart';
 import 'weekly_review_sheet.dart';
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -34,6 +35,25 @@ class _ProgressScreenState extends State<ProgressScreen> {
       _habits = savedHabits ?? sampleHabits();
       _isLoading = false;
     });
+  }
+
+  void _openDayHistory(DateTime day) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (day.isAfter(today)) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => DayHistorySheet(
+        day: day,
+        habits: _habits,
+        onHabitsChanged: (updated) {
+          if (!mounted) return;
+          setState(() => _habits = updated);
+        },
+      ),
+    );
   }
 
   Future<void> _openWeeklyReview() async {
@@ -76,7 +96,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
             bestStreak: bestStreak(_habits, now),
           ),
           const SizedBox(height: 16),
-          _WeekSummary(habits: _habits, days: last7Days(now)),
+          _WeekSummary(
+            habits: _habits,
+            days: last7Days(now),
+            onDayTap: _openDayHistory,
+          ),
           const SizedBox(height: 16),
           _WeeklyReviewCard(onOpenReview: _openWeeklyReview),
         ],
@@ -192,8 +216,13 @@ class _StreakTile extends StatelessWidget {
 class _WeekSummary extends StatelessWidget {
   final List<Habit> habits;
   final List<DateTime> days;
+  final void Function(DateTime) onDayTap;
 
-  const _WeekSummary({required this.habits, required this.days});
+  const _WeekSummary({
+    required this.habits,
+    required this.days,
+    required this.onDayTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +239,12 @@ class _WeekSummary extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                for (final day in days) _DayIndicator(day: day, habits: habits),
+                for (final day in days)
+                  _DayIndicator(
+                    day: day,
+                    habits: habits,
+                    onTap: () => onDayTap(day),
+                  ),
               ],
             ),
           ],
@@ -223,8 +257,13 @@ class _WeekSummary extends StatelessWidget {
 class _DayIndicator extends StatelessWidget {
   final DateTime day;
   final List<Habit> habits;
+  final VoidCallback onTap;
 
-  const _DayIndicator({required this.day, required this.habits});
+  const _DayIndicator({
+    required this.day,
+    required this.habits,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -233,25 +272,33 @@ class _DayIndicator extends StatelessWidget {
     final allDone = habits.isNotEmpty && count == habits.length;
     final anyDone = count > 0;
 
-    return Column(
-      children: [
-        Text(
-          _weekdayLabels[day.weekday - 1],
-          style: theme.textTheme.labelSmall,
-        ),
-        const SizedBox(height: 6),
-        CircleAvatar(
-          radius: 14,
-          backgroundColor: allDone
-              ? theme.colorScheme.primary
-              : anyDone
-              ? theme.colorScheme.primary.withValues(alpha: 0.35)
-              : theme.colorScheme.surfaceContainerHighest,
-          child: allDone
-              ? Icon(Icons.check, size: 16, color: theme.colorScheme.onPrimary)
-              : null,
-        ),
-      ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        children: [
+          Text(
+            _weekdayLabels[day.weekday - 1],
+            style: theme.textTheme.labelSmall,
+          ),
+          const SizedBox(height: 6),
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: allDone
+                ? theme.colorScheme.primary
+                : anyDone
+                ? theme.colorScheme.primary.withValues(alpha: 0.35)
+                : theme.colorScheme.surfaceContainerHighest,
+            child: allDone
+                ? Icon(
+                    Icons.check,
+                    size: 16,
+                    color: theme.colorScheme.onPrimary,
+                  )
+                : null,
+          ),
+        ],
+      ),
     );
   }
 }

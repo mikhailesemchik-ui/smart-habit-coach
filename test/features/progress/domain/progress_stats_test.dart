@@ -70,6 +70,34 @@ void main() {
     });
   });
 
+  // Test 8: future dates cannot be edited (last7Days never returns future dates)
+  group('last7Days', () {
+    test('returns exactly 7 dates', () {
+      expect(last7Days(reference), hasLength(7));
+    });
+
+    test('contains only dates on or before the reference date', () {
+      final today = DateTime(reference.year, reference.month, reference.day);
+      expect(last7Days(reference).every((d) => !d.isAfter(today)), isTrue);
+    });
+
+    test('last element is the reference date itself', () {
+      final days = last7Days(reference);
+      final today = DateTime(reference.year, reference.month, reference.day);
+      expect(days.last, today);
+    });
+
+    test('first element is six days before the reference date', () {
+      final days = last7Days(reference);
+      final sixDaysAgo = DateTime(
+        reference.year,
+        reference.month,
+        reference.day,
+      ).subtract(const Duration(days: 6));
+      expect(days.first, sixDaysAgo);
+    });
+  });
+
   group('weeklyCompletionRate', () {
     test('returns 0 when there are no habits', () {
       expect(weeklyCompletionRate([], reference), 0);

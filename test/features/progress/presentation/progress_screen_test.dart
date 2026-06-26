@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review.dart';
+import 'package:smart_habit_coach/features/progress/presentation/day_history_sheet.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_exception.dart';
 import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_source.dart';
 import 'package:smart_habit_coach/features/progress/domain/weekly_review.dart';
@@ -21,6 +22,122 @@ class _FailingAiWeeklyReviewSource implements AiWeeklyReviewSource {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  // Test 1: tapping a day indicator opens the sheet for that date
+  testWidgets('tapping a Last 7 Days indicator opens the sheet for that date', (
+    tester,
+  ) async {
+    // setUp leaves empty prefs → ProgressScreen loads 3 sample habits with no completions
+    await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
+    await tester.pumpAndSettle();
+
+    final sixDaysAgo = DateTime.now().subtract(const Duration(days: 6));
+    final shortLabel = [
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+      'Sun',
+    ][sixDaysAgo.weekday - 1];
+
+    await tester.tap(find.text(shortLabel));
+    await tester.pumpAndSettle();
+
+    // Sheet title shows the full formatted date
+    expect(find.text(formatSheetDate(sixDaysAgo)), findsOneWidget);
+    // 3 sample habits, none completed on that day
+    expect(find.text('0 of 3 completed'), findsOneWidget);
+  });
+
+  // Test 6: progress metrics refresh after editing a past date
+  testWidgets(
+    'completion rate refreshes after toggling a habit in the day sheet',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'habits': jsonEncode([
+          {
+            'id': '1',
+            'title': 'Run',
+            'scheduledTime': '08:00 AM',
+            'iconId': 'fitness',
+            'completedDates': [],
+          },
+        ]),
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('0% completion rate'), findsOneWidget);
+
+      // Open yesterday's day sheet
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final label = [
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat',
+        'Sun',
+      ][yesterday.weekday - 1];
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+
+      // Mark the habit complete
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+
+      // onHabitsChanged has already updated the parent's _habits via setState.
+      // The parent is in the element tree (behind the sheet) and reflects the
+      // new rate immediately without needing to close the sheet first.
+      expect(find.text('0% completion rate'), findsNothing);
+      expect(find.text('14% completion rate'), findsOneWidget);
+    },
+  );
+
+  // Test 7: partial/full/empty day states update correctly
+  testWidgets('day sheet subtitle shows partial completion count', (
+    tester,
+  ) async {
+    final today = dateKey(DateTime.now());
+    SharedPreferences.setMockInitialValues({
+      'habits': jsonEncode([
+        {
+          'id': '1',
+          'title': 'Run',
+          'scheduledTime': '08:00 AM',
+          'iconId': 'fitness',
+          'completedDates': [today],
+        },
+        {
+          'id': '2',
+          'title': 'Read',
+          'scheduledTime': '09:00 AM',
+          'iconId': 'book',
+          'completedDates': [],
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
+    await tester.pumpAndSettle();
+
+    final todayLabel = [
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+      'Sun',
+    ][DateTime.now().weekday - 1];
+    await tester.tap(find.text(todayLabel));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 of 2 completed'), findsOneWidget);
   });
 
   testWidgets(
