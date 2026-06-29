@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/habit_icons.dart';
 import '../domain/scheduled_time.dart';
@@ -24,6 +25,7 @@ class AddHabitSheet extends StatefulWidget {
 class _AddHabitSheetState extends State<AddHabitSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
+  late final TextEditingController _minimumVersionController;
   late TimeOfDay _selectedTime;
   late IconData _selectedIcon;
   late bool _everyDay;
@@ -37,6 +39,9 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     super.initState();
     final initialHabit = widget.initialHabit;
     _titleController = TextEditingController(text: initialHabit?.title ?? '');
+    _minimumVersionController = TextEditingController(
+      text: initialHabit?.minimumVersion ?? '',
+    );
     _selectedTime = initialHabit != null
         ? (parseScheduledTime(initialHabit.scheduledTime) ?? TimeOfDay.now())
         : TimeOfDay.now();
@@ -53,6 +58,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   @override
   void dispose() {
     _titleController.dispose();
+    _minimumVersionController.dispose();
     super.dispose();
   }
 
@@ -97,13 +103,32 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
         : (_selectedWeekdays.toList()..sort());
 
     final initialHabit = widget.initialHabit;
+    final minVersionText = _minimumVersionController.text.trim();
+
+    // When minimumVersion is removed, clear today's minimum state so the card
+    // no longer shows an impossible "Minimum done" status. Past minimum dates
+    // are preserved for historical statistics.
+    var minimumDates = initialHabit?.minimumCompletedDates ?? const <String>{};
+    final hadMinimumVersion = initialHabit?.hasMinimumVersion ?? false;
+    if (hadMinimumVersion && minVersionText.isEmpty) {
+      final today = todayKey();
+      if (minimumDates.contains(today)) {
+        minimumDates = Set<String>.of(minimumDates)..remove(today);
+      }
+    }
+
     final habit = Habit(
       id: initialHabit?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
       title: _titleController.text.trim(),
       scheduledTime: _formatTime(_selectedTime),
       icon: _selectedIcon,
       completedDates: initialHabit?.completedDates ?? const {},
+      minimumCompletedDates: minimumDates,
       weekdays: weekdays,
+      // Preserve status so editing a paused/archived habit does not resume it.
+      status: initialHabit?.status ?? HabitStatus.active,
+      pausedFromDate: initialHabit?.pausedFromDate,
+      minimumVersion: minVersionText.isEmpty ? null : minVersionText,
     );
     Navigator.of(context).pop(habit);
   }
@@ -227,6 +252,25 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       ),
                     ),
                 ],
+                const SizedBox(height: 24),
+                Text('Minimum version', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 2),
+                Text(
+                  'An easier version for difficult days (optional)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _minimumVersionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Minimum version (optional)',
+                    hintText: '5 minutes of stretching',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 1,
+                ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,

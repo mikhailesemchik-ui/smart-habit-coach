@@ -13,6 +13,10 @@ class HabitSuggestion {
   /// suggestion can become a [Habit]. Null means no constraint.
   final int? requiredDaysPerWeek;
 
+  /// Optional easier version of the habit suggested by the AI. Null means
+  /// the AI did not suggest a minimum version.
+  final String? minimumVersion;
+
   const HabitSuggestion({
     required this.title,
     required this.reason,
@@ -20,6 +24,7 @@ class HabitSuggestion {
     required this.icon,
     this.weekdays = const [1, 2, 3, 4, 5, 6, 7],
     this.requiredDaysPerWeek,
+    this.minimumVersion,
   });
 
   /// True when the schedule is fully specified and [toHabit] may be called.
@@ -34,6 +39,7 @@ class HabitSuggestion {
     icon: icon,
     weekdays: days,
     requiredDaysPerWeek: requiredDaysPerWeek,
+    minimumVersion: minimumVersion,
   );
 
   /// Converts this suggestion to a [Habit]. Asserts that [isResolved] is true.
@@ -45,6 +51,7 @@ class HabitSuggestion {
       scheduledTime: scheduledTime,
       icon: icon,
       weekdays: weekdays.isEmpty ? const [1, 2, 3, 4, 5, 6, 7] : weekdays,
+      minimumVersion: minimumVersion,
     );
   }
 }

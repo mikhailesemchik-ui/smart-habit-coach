@@ -7,7 +7,7 @@ import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/sample_habits.dart';
 import 'add_habit_sheet.dart';
-import 'habit_details_sheet.dart';
+import 'habit_details_screen.dart';
 
 const _weekdayNames = [
   'Monday',
@@ -66,12 +66,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _toggleHabit(String id) {
+  void _setHabitStatus(String id, HabitCompletionStatus status) {
     setState(() {
-      final index = _habits.indexWhere((habit) => habit.id == id);
-      _habits[index] = _habits[index].toggleDate(todayKey());
+      final index = _habits.indexWhere((h) => h.id == id);
+      _habits[index] = _habits[index].setCompletionStatus(todayKey(), status);
     });
     _storage.saveHabits(_habits);
+  }
+
+  Future<void> _pickStatus(Habit habit) async {
+    if (!mounted) return;
+    final result = await showModalBottomSheet<HabitCompletionStatus>(
+      context: context,
+      builder: (_) => _MinVersionPickerSheet(habit: habit),
+    );
+    if (result != null && mounted) _setHabitStatus(habit.id, result);
   }
 
   void _addHabit(Habit habit) {
@@ -89,49 +98,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (newHabit != null) {
       _addHabit(newHabit);
-    }
-  }
-
-  Future<void> _openEditHabitSheet(Habit habit) async {
-    final updated = await showModalBottomSheet<Habit>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => AddHabitSheet(initialHabit: habit),
-    );
-
-    if (updated != null) {
-      setState(() {
-        final index = _habits.indexWhere((h) => h.id == habit.id);
-        _habits[index] = updated;
-      });
-      _storage.saveHabits(_habits);
-      _notifications.scheduleHabitReminder(updated);
-    }
-  }
-
-  Future<void> _confirmDeleteHabit(Habit habit) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete habit'),
-        content: Text('Delete "${habit.title}"? This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      setState(() => _habits.removeWhere((h) => h.id == habit.id));
-      _storage.saveHabits(_habits);
-      _notifications.cancelHabitReminder(habit.id);
     }
   }
 
@@ -159,16 +125,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openHabitDetails(Habit habit) async {
-    final action = await showModalBottomSheet<HabitDetailsAction>(
-      context: context,
-      builder: (_) => HabitDetailsSheet(habit: habit),
+    // Flush in-memory state so the details screen can load and save it.
+    await _storage.saveHabits(_habits);
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HabitDetailsScreen(
+          habit: habit,
+          notificationService: _notifications,
+        ),
+      ),
     );
+    if (!mounted) return;
+    await _silentReload();
+  }
 
-    if (action == HabitDetailsAction.edit) {
-      await _openEditHabitSheet(habit);
-    } else if (action == HabitDetailsAction.delete) {
-      await _confirmDeleteHabit(habit);
-    }
+  Future<void> _silentReload() async {
+    final habits = await _storage.loadHabits();
+    if (!mounted) return;
+    setState(() => _habits = habits ?? _habits);
   }
 
   String _formatToday() {
@@ -188,11 +164,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final today = DateTime.now();
+    final todayStr = todayKey();
     final scheduledToday = _habits
-        .where((h) => h.isScheduledFor(today))
+        .where((h) => h.isActive && h.isScheduledFor(today))
         .toList();
-    final completedCount = scheduledToday
-        .where((h) => h.isCompletedToday)
+    final fullCount = scheduledToday
+        .where(
+          (h) => h.completionStatusFor(todayStr) == HabitCompletionStatus.full,
+        )
+        .length;
+    final minimumCount = scheduledToday
+        .where(
+          (h) =>
+              h.completionStatusFor(todayStr) == HabitCompletionStatus.minimum,
+        )
         .length;
 
     return Scaffold(
@@ -203,7 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(_formatToday(), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
           _ProgressCard(
-            completedCount: completedCount,
+            fullCount: fullCount,
+            minimumCount: minimumCount,
             totalCount: scheduledToday.length,
           ),
           const SizedBox(height: 16),
@@ -233,7 +219,15 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: _HabitCard(
                 habit: habit,
-                onToggle: () => _toggleHabit(habit.id),
+                onToggle: habit.hasMinimumVersion
+                    ? () => _pickStatus(habit)
+                    : () => _setHabitStatus(
+                        habit.id,
+                        habit.completionStatusFor(todayStr) ==
+                                HabitCompletionStatus.full
+                            ? HabitCompletionStatus.none
+                            : HabitCompletionStatus.full,
+                      ),
                 onTap: () => _openHabitDetails(habit),
               ),
             ),
@@ -248,16 +242,29 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _ProgressCard extends StatelessWidget {
-  final int completedCount;
+  final int fullCount;
+  final int minimumCount;
   final int totalCount;
 
-  const _ProgressCard({required this.completedCount, required this.totalCount});
+  const _ProgressCard({
+    required this.fullCount,
+    required this.minimumCount,
+    required this.totalCount,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final progress = totalCount == 0 ? 0.0 : completedCount / totalCount;
-    final percentage = (progress * 100).round();
+    final score = totalCount == 0
+        ? 0.0
+        : (fullCount + minimumCount * 0.5) / totalCount;
+    final percentage = (score * 100).round();
+    final remaining = totalCount - fullCount - minimumCount;
+
+    final parts = <String>['$fullCount full'];
+    if (minimumCount > 0) parts.add('$minimumCount minimum');
+    if (remaining > 0) parts.add('$remaining remaining');
+    final label = totalCount == 0 ? 'No habits today' : parts.join(' · ');
 
     return Card(
       child: Padding(
@@ -265,14 +272,20 @@ class _ProgressCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Today\'s progress', style: theme.textTheme.titleMedium),
+            Text("Today's progress", style: theme.textTheme.titleMedium),
             const SizedBox(height: 12),
-            LinearProgressIndicator(value: progress),
+            LinearProgressIndicator(value: score),
             const SizedBox(height: 8),
-            Text(
-              '$completedCount of $totalCount habits completed ($percentage%)',
-              style: theme.textTheme.bodyMedium,
-            ),
+            Text(label, style: theme.textTheme.bodyMedium),
+            if (score > 0) ...[
+              const SizedBox(height: 2),
+              Text(
+                '$percentage% progress score',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -294,22 +307,74 @@ class _HabitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final status = habit.completionStatusFor(todayKey());
+
+    final icon = switch (status) {
+      HabitCompletionStatus.full => Icons.check_circle,
+      HabitCompletionStatus.minimum => Icons.adjust,
+      HabitCompletionStatus.none => Icons.radio_button_unchecked,
+    };
+    final iconColor = switch (status) {
+      HabitCompletionStatus.full => theme.colorScheme.primary,
+      HabitCompletionStatus.minimum => theme.colorScheme.tertiary,
+      HabitCompletionStatus.none => null,
+    };
+    final subtitle = status == HabitCompletionStatus.minimum
+        ? '${habit.scheduledTime} · Minimum done'
+        : habit.scheduledTime;
 
     return Card(
       child: ListTile(
         onTap: onTap,
         leading: Icon(habit.icon, color: theme.colorScheme.primary),
         title: Text(habit.title),
-        subtitle: Text(habit.scheduledTime),
+        subtitle: Text(subtitle),
         trailing: IconButton(
-          icon: Icon(
-            habit.isCompletedToday
-                ? Icons.check_circle
-                : Icons.radio_button_unchecked,
-            color: habit.isCompletedToday ? theme.colorScheme.primary : null,
-          ),
+          icon: Icon(icon, color: iconColor),
           onPressed: onToggle,
         ),
+      ),
+    );
+  }
+}
+
+class _MinVersionPickerSheet extends StatelessWidget {
+  final Habit habit;
+
+  const _MinVersionPickerSheet({required this.habit});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(habit.title, style: theme.textTheme.titleMedium),
+          ),
+          ListTile(
+            leading: const Icon(Icons.check_circle_outline),
+            title: const Text('Complete fully'),
+            onTap: () => Navigator.of(context).pop(HabitCompletionStatus.full),
+          ),
+          ListTile(
+            leading: const Icon(Icons.adjust),
+            title: const Text('Minimum done'),
+            subtitle: Text(habit.minimumVersion ?? ''),
+            onTap: () =>
+                Navigator.of(context).pop(HabitCompletionStatus.minimum),
+          ),
+          ListTile(
+            leading: const Icon(Icons.radio_button_unchecked),
+            title: const Text('Not completed'),
+            onTap: () => Navigator.of(context).pop(HabitCompletionStatus.none),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }

@@ -38,6 +38,9 @@ class WeeklyReviewMetrics {
   final String? strongestDay;
   final String? weakestDay;
   final int completedCount;
+
+  /// Habit-days completed at minimum level (distinct from full completions).
+  final int minimumCompletedCount;
   final int totalPossibleCount;
 
   const WeeklyReviewMetrics({
@@ -47,6 +50,7 @@ class WeeklyReviewMetrics {
     required this.strongestDay,
     required this.weakestDay,
     required this.completedCount,
+    required this.minimumCompletedCount,
     required this.totalPossibleCount,
   });
 }
@@ -65,6 +69,7 @@ WeeklyReviewMetrics calculateWeeklyReviewMetrics(
       strongestDay: null,
       weakestDay: null,
       completedCount: 0,
+      minimumCompletedCount: 0,
       totalPossibleCount: 0,
     );
   }
@@ -77,6 +82,17 @@ WeeklyReviewMetrics calculateWeeklyReviewMetrics(
           .length,
   ];
   final completedCount = dailyCounts.fold(0, (sum, count) => sum + count);
+
+  // Minimum completions: scheduled days with minimum (not full) completion.
+  var minimumCompletedCount = 0;
+  for (final day in days) {
+    final key = dateKey(day);
+    for (final h in habits) {
+      if (h.isScheduledFor(day) && h.minimumCompletedDates.contains(key)) {
+        minimumCompletedCount++;
+      }
+    }
+  }
 
   String? strongestDay;
   String? weakestDay;
@@ -98,6 +114,7 @@ WeeklyReviewMetrics calculateWeeklyReviewMetrics(
     strongestDay: strongestDay,
     weakestDay: weakestDay,
     completedCount: completedCount,
+    minimumCompletedCount: minimumCompletedCount,
     totalPossibleCount: days.fold(
       0,
       (sum, day) => sum + habits.where((h) => h.isScheduledFor(day)).length,

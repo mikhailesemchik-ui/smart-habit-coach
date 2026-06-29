@@ -33,6 +33,7 @@ class AiWeeklyReviewService implements AiWeeklyReviewSource {
               'strongestDay': metrics.strongestDay,
               'weakestDay': metrics.weakestDay,
               'completedCount': metrics.completedCount,
+              'minimumCompletedCount': metrics.minimumCompletedCount,
               'totalPossibleCount': metrics.totalPossibleCount,
             },
           )

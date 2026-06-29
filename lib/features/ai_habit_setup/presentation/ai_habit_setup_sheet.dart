@@ -399,6 +399,13 @@ class _SuggestionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text('Repeat: $repeatLabel', style: theme.textTheme.bodySmall),
+            if (suggestion.minimumVersion != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Minimum: ${suggestion.minimumVersion}',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
       ),

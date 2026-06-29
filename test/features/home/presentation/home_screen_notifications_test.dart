@@ -71,7 +71,8 @@ void main() {
 
     await tester.tap(find.text('Drink water'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+    await tester.ensureVisible(find.text('Edit habit'));
+    await tester.tap(find.text('Edit habit'));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -89,7 +90,10 @@ void main() {
 
     await tester.tap(find.text('Drink water'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.ensureVisible(
+      find.widgetWithText(OutlinedButton, 'Delete habit'),
+    );
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Delete habit'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
     await tester.pumpAndSettle();
@@ -137,7 +141,8 @@ void main() {
 
     await tester.tap(find.text('Drink water'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+    await tester.ensureVisible(find.text('Edit habit'));
+    await tester.tap(find.text('Edit habit'));
     await tester.pumpAndSettle();
 
     // Switch from Every day to Specific days (Mon + Wed)

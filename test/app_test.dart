@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/app.dart';
-import 'package:smart_habit_coach/features/home/presentation/habit_details_sheet.dart';
+import 'package:smart_habit_coach/features/home/presentation/habit_details_screen.dart';
 
 void main() {
   setUp(() {
@@ -22,12 +22,12 @@ void main() {
     expect(find.text('Drink water'), findsOneWidget);
     expect(find.text('Read 20 minutes'), findsOneWidget);
     expect(find.text('Evening walk'), findsOneWidget);
-    expect(find.text('0 of 3 habits completed (0%)'), findsOneWidget);
+    expect(find.text('0 full · 3 remaining'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked).first);
     await tester.pump();
 
-    expect(find.text('1 of 3 habits completed (33%)'), findsOneWidget);
+    expect(find.text('1 full · 2 remaining'), findsOneWidget);
   });
 
   testWidgets('Adding a habit updates the list and progress summary', (
@@ -49,7 +49,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add habit'), findsNothing);
-    expect(find.text('0 of 4 habits completed (0%)'), findsOneWidget);
+    expect(find.text('0 full · 4 remaining'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('Stretch'), 200);
     expect(find.text('Stretch'), findsOneWidget);
@@ -82,7 +82,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add habit'), findsNothing);
-    expect(find.text('0 of 3 habits completed (0%)'), findsOneWidget);
+    expect(find.text('0 full · 3 remaining'), findsOneWidget);
   });
 
   testWidgets('Tapping a habit opens its details', (tester) async {
@@ -92,20 +92,9 @@ void main() {
     await tester.tap(find.text('Drink water'));
     await tester.pumpAndSettle();
 
-    final details = find.byType(HabitDetailsSheet);
-    expect(details, findsOneWidget);
-    expect(
-      find.descendant(of: details, matching: find.text('Drink water')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: details, matching: find.text('08:00 AM')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: details, matching: find.text('Not completed')),
-      findsOneWidget,
-    );
+    expect(find.byType(HabitDetailsScreen), findsOneWidget);
+    expect(find.text('08:00 AM'), findsOneWidget);
+    expect(find.text('Not completed'), findsOneWidget);
   });
 
   testWidgets('Editing a habit updates it in the list', (tester) async {
@@ -114,16 +103,20 @@ void main() {
 
     await tester.tap(find.text('Drink water'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
-    await tester.pumpAndSettle();
 
-    expect(find.text('Edit habit'), findsOneWidget);
+    await tester.ensureVisible(find.text('Edit habit'));
+    await tester.tap(find.text('Edit habit'));
+    await tester.pumpAndSettle();
 
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Habit title'),
       'Drink more water',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    // Pop back to the home screen.
+    await tester.pageBack();
     await tester.pumpAndSettle();
 
     expect(find.text('Drink more water'), findsOneWidget);
@@ -138,7 +131,9 @@ void main() {
 
     await tester.tap(find.text('Drink water'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+
+    await tester.ensureVisible(find.text('Edit habit'));
+    await tester.tap(find.text('Edit habit'));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -146,6 +141,10 @@ void main() {
       'Should not save',
     );
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Pop back to the home screen.
+    await tester.pageBack();
     await tester.pumpAndSettle();
 
     expect(find.text('Drink water'), findsOneWidget);
@@ -158,9 +157,13 @@ void main() {
       await tester.pumpWidget(const SmartHabitCoachApp());
       await tester.pumpAndSettle();
 
+      // Open details and cancel the delete.
       await tester.tap(find.text('Evening walk'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.ensureVisible(
+        find.widgetWithText(OutlinedButton, 'Delete habit'),
+      );
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Delete habit'));
       await tester.pumpAndSettle();
 
       expect(find.byType(AlertDialog), findsOneWidget);
@@ -168,18 +171,27 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Evening walk'), findsOneWidget);
-      expect(find.text('0 of 3 habits completed (0%)'), findsOneWidget);
+      // Back to home screen after canceling.
+      await tester.pageBack();
+      await tester.pumpAndSettle();
 
+      expect(find.text('Evening walk'), findsOneWidget);
+      expect(find.text('0 full · 3 remaining'), findsOneWidget);
+
+      // Open details again and confirm the delete.
       await tester.tap(find.text('Evening walk'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.ensureVisible(
+        find.widgetWithText(OutlinedButton, 'Delete habit'),
+      );
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Delete habit'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
       await tester.pumpAndSettle();
 
+      // _deleteHabit pops the screen automatically; home screen reloads.
       expect(find.text('Evening walk'), findsNothing);
-      expect(find.text('0 of 2 habits completed (0%)'), findsOneWidget);
+      expect(find.text('0 full · 2 remaining'), findsOneWidget);
     },
   );
 }

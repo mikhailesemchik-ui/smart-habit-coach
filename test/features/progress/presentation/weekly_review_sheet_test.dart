@@ -76,6 +76,7 @@ void main() {
     strongestDay: 'Wednesday',
     weakestDay: 'Sunday',
     completedCount: 9,
+    minimumCompletedCount: 0,
     totalPossibleCount: 20,
   );
   const aiReview = AiWeeklyReview(

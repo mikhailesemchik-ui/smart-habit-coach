@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../home/presentation/archived_habits_screen.dart';
 import '../domain/app_settings.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -112,6 +113,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
             selected: {settings.startOfWeek},
             onSelectionChanged: _onStartOfWeekChanged,
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.archive_outlined),
+            title: const Text('Archived habits'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ArchivedHabitsScreen()),
+            ),
           ),
         ],
       ),

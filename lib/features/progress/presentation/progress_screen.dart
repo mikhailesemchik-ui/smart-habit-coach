@@ -38,16 +38,26 @@ class _ProgressScreenState extends State<ProgressScreen> {
     });
   }
 
+  // Merges [updatedActive] back into the full habit list.
+  // Used by calendar/history sheets that receive only active habits.
+  void _mergeActiveHabits(List<Habit> updatedActive) {
+    final updatedMap = {for (final h in updatedActive) h.id: h};
+    setState(
+      () => _habits = _habits.map((h) => updatedMap[h.id] ?? h).toList(),
+    );
+  }
+
   void _openCalendar() {
+    final activeHabits = _habits.where((h) => h.isActive).toList();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => HabitHistoryCalendarSheet(
-        habits: _habits,
+        habits: activeHabits,
         today: DateTime.now(),
         onHabitsChanged: (updated) {
           if (!mounted) return;
-          setState(() => _habits = updated);
+          _mergeActiveHabits(updated);
         },
       ),
     );
@@ -58,15 +68,16 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final today = DateTime(now.year, now.month, now.day);
     if (day.isAfter(today)) return;
 
+    final activeHabits = _habits.where((h) => h.isActive).toList();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => DayHistorySheet(
         day: day,
-        habits: _habits,
+        habits: activeHabits,
         onHabitsChanged: (updated) {
           if (!mounted) return;
-          setState(() => _habits = updated);
+          _mergeActiveHabits(updated);
         },
       ),
     );
@@ -74,8 +85,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   Future<void> _openWeeklyReview() async {
     final now = DateTime.now();
-    final localReview = generateWeeklyReview(_habits, now);
-    final metrics = calculateWeeklyReviewMetrics(_habits, now);
+    final activeHabits = _habits.where((h) => h.isActive).toList();
+    final localReview = generateWeeklyReview(activeHabits, now);
+    final metrics = calculateWeeklyReviewMetrics(activeHabits, now);
     await showModalBottomSheet<void>(
       context: context,
       builder: (_) =>
@@ -100,6 +112,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
 
     final now = DateTime.now();
+    // Paused and archived habits are excluded from all Progress calculations.
+    final activeHabits = _habits.where((h) => h.isActive).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Progress')),
@@ -107,13 +121,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _StatsCard(
-            rate: weeklyCompletionRate(_habits, now),
-            streak: currentStreak(_habits, now),
-            bestStreak: bestStreak(_habits, now),
+            rate: weeklyCompletionRate(activeHabits, now),
+            streak: currentStreak(activeHabits, now),
+            bestStreak: bestStreak(activeHabits, now),
           ),
           const SizedBox(height: 16),
           _WeekSummary(
-            habits: _habits,
+            habits: activeHabits,
             days: last7Days(now),
             onDayTap: _openDayHistory,
             onOpenCalendar: _openCalendar,

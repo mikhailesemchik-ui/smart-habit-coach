@@ -8,6 +8,74 @@ import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  // ── Status filtering ──────────────────────────────────────────────────────
+
+  // Test 8 (status): paused habits do not appear in Today.
+  testWidgets('paused habits do not appear in Today', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'habits': jsonEncode([
+        {
+          'id': '1',
+          'title': 'Active habit',
+          'scheduledTime': '08:00 AM',
+          'iconId': 'water',
+          'completedDates': <String>[],
+          'weekdays': [1, 2, 3, 4, 5, 6, 7],
+          'status': 'active',
+        },
+        {
+          'id': '2',
+          'title': 'Paused habit',
+          'scheduledTime': '09:00 AM',
+          'iconId': 'book',
+          'completedDates': <String>[],
+          'weekdays': [1, 2, 3, 4, 5, 6, 7],
+          'status': 'paused',
+          'pausedFromDate': '2026-06-01',
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active habit'), findsOneWidget);
+    expect(find.text('Paused habit'), findsNothing);
+  });
+
+  // Test 9 (status): archived habits do not appear in Today.
+  testWidgets('archived habits do not appear in Today', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'habits': jsonEncode([
+        {
+          'id': '1',
+          'title': 'Active habit',
+          'scheduledTime': '08:00 AM',
+          'iconId': 'water',
+          'completedDates': <String>[],
+          'weekdays': [1, 2, 3, 4, 5, 6, 7],
+          'status': 'active',
+        },
+        {
+          'id': '2',
+          'title': 'Archived habit',
+          'scheduledTime': '09:00 AM',
+          'iconId': 'book',
+          'completedDates': <String>[],
+          'weekdays': [1, 2, 3, 4, 5, 6, 7],
+          'status': 'archived',
+          'pausedFromDate': '2026-06-01',
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active habit'), findsOneWidget);
+    expect(find.text('Archived habit'), findsNothing);
+  });
+
   // ── Today filtering ───────────────────────────────────────────────────────
 
   // Test 8: Today shows only habits scheduled for today.
@@ -131,7 +199,8 @@ void main() {
     if (gymFinder.evaluate().isNotEmpty) {
       await tester.tap(gymFinder);
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+      await tester.ensureVisible(find.text('Edit habit'));
+      await tester.tap(find.text('Edit habit'));
       await tester.pumpAndSettle();
     } else {
       // Gym is not shown today — navigate via storage directly in a widget test

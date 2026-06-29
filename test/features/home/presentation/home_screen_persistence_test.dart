@@ -30,7 +30,8 @@ void main() {
 
         await tester.tap(find.text('Drink water'));
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+        await tester.ensureVisible(find.text('Edit habit'));
+        await tester.tap(find.text('Edit habit'));
         await tester.pumpAndSettle();
 
         await tester.enterText(

@@ -83,6 +83,25 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     widget.onHabitsChanged(updated);
   }
 
+  Future<void> _setStatus(
+    int scheduledIndex,
+    HabitCompletionStatus status,
+  ) async {
+    final habit = _scheduled[scheduledIndex];
+    final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final updated = List<Habit>.of(_allHabits);
+    updated[allIndex] = updated[allIndex].setCompletionStatus(_dateKey, status);
+    await _storage.saveHabits(updated);
+    if (!mounted) return;
+    setState(() {
+      _allHabits = updated;
+      _scheduled = _allHabits
+          .where((h) => h.isScheduledFor(widget.day))
+          .toList();
+    });
+    widget.onHabitsChanged(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -156,6 +175,13 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
                       itemCount: _scheduled.length,
                       itemBuilder: (_, index) {
                         final habit = _scheduled[index];
+                        if (habit.hasMinimumVersion) {
+                          return _MinVersionTile(
+                            habit: habit,
+                            dateKey: _dateKey,
+                            onChanged: (s) => _setStatus(index, s),
+                          );
+                        }
                         return CheckboxListTile(
                           secondary: Icon(habit.icon),
                           title: Text(habit.title),
@@ -168,6 +194,84 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Three-state list tile for habits that have a minimum version configured.
+class _MinVersionTile extends StatelessWidget {
+  final Habit habit;
+  final String dateKey;
+  final void Function(HabitCompletionStatus) onChanged;
+
+  const _MinVersionTile({
+    required this.habit,
+    required this.dateKey,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final status = habit.completionStatusFor(dateKey);
+
+    return ListTile(
+      leading: Icon(habit.icon),
+      title: Text(habit.title),
+      subtitle: status == HabitCompletionStatus.minimum
+          ? Text('Minimum done', style: TextStyle(color: cs.tertiary))
+          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StatusIconButton(
+            icon: Icons.radio_button_unchecked,
+            selected: status == HabitCompletionStatus.none,
+            color: cs.onSurfaceVariant,
+            onTap: () => onChanged(HabitCompletionStatus.none),
+          ),
+          _StatusIconButton(
+            icon: Icons.adjust,
+            selected: status == HabitCompletionStatus.minimum,
+            color: cs.tertiary,
+            onTap: () => onChanged(HabitCompletionStatus.minimum),
+          ),
+          _StatusIconButton(
+            icon: Icons.check_circle,
+            selected: status == HabitCompletionStatus.full,
+            color: cs.primary,
+            onTap: () => onChanged(HabitCompletionStatus.full),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusIconButton extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StatusIconButton({
+    required this.icon,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dimColor = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.38);
+    return IconButton(
+      icon: Icon(icon, color: selected ? color : dimColor),
+      onPressed: onTap,
+      iconSize: 20,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      padding: EdgeInsets.zero,
     );
   }
 }

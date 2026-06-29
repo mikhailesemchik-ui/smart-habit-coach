@@ -21,21 +21,21 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  int _homeRefreshToken = 0;
   int _progressRefreshToken = 0;
 
   void _onDestinationSelected(int index) {
     setState(() {
       _selectedIndex = index;
-      if (index == 1) {
-        _progressRefreshToken++;
-      }
+      if (index == 0) _homeRefreshToken++;
+      if (index == 1) _progressRefreshToken++;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const HomeScreen(),
+      HomeScreen(key: ValueKey(_homeRefreshToken)),
       ProgressScreen(key: ValueKey(_progressRefreshToken)),
       ProfileScreen(
         settings: widget.settings,

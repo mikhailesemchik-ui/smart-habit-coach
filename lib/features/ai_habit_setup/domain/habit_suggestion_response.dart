@@ -62,7 +62,14 @@ HabitSuggestion parseHabitSuggestionResponse(
     icon: habitIconFromId(iconId),
     weekdays: weekdays,
     requiredDaysPerWeek: requiredDaysPerWeek,
+    minimumVersion: _readOptionalString(rawResponse['minimumVersion']),
   );
+}
+
+String? _readOptionalString(Object? raw) {
+  if (raw is! String) return null;
+  final s = raw.trim();
+  return s.isEmpty ? null : s;
 }
 
 int? _readRequiredDays(Object? raw, {required String goalHint}) {

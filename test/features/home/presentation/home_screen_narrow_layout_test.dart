@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_habit_coach/features/home/presentation/habit_details_screen.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
 void main() {
@@ -52,7 +53,7 @@ void main() {
   );
 
   testWidgets(
-    'Habit details sheet keeps the Edit button above the system navigation inset',
+    'Habit details screen does not overflow on a compact screen with system insets',
     (tester) async {
       addTearDown(tester.view.reset);
       tester.view.physicalSize = const Size(360, 640);
@@ -66,10 +67,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      final editButtonBottom = tester
-          .getRect(find.widgetWithText(FilledButton, 'Edit'))
-          .bottom;
-      expect(editButtonBottom, lessThanOrEqualTo(640 - 48));
+      expect(find.byType(HabitDetailsScreen), findsOneWidget);
     },
   );
 }
