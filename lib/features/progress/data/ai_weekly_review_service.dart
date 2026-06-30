@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../home/domain/habit.dart';
+
 import '../domain/ai_weekly_review.dart';
 import '../domain/ai_weekly_review_exception.dart';
 import '../domain/ai_weekly_review_response.dart';
@@ -35,6 +37,48 @@ class AiWeeklyReviewService implements AiWeeklyReviewSource {
               'completedCount': metrics.completedCount,
               'minimumCompletedCount': metrics.minimumCompletedCount,
               'totalPossibleCount': metrics.totalPossibleCount,
+              'skipReasons': {
+                'noTime': metrics.skipReasonCounts[HabitSkipReason.noTime] ?? 0,
+                'forgot': metrics.skipReasonCounts[HabitSkipReason.forgot] ?? 0,
+                'tooTired':
+                    metrics.skipReasonCounts[HabitSkipReason.tooTired] ?? 0,
+                'tooDifficult':
+                    metrics.skipReasonCounts[HabitSkipReason.tooDifficult] ?? 0,
+                'other': metrics.skipReasonCounts[HabitSkipReason.other] ?? 0,
+              },
+              'missedWithoutReason': metrics.missedWithoutReason,
+              'partialReasons': {
+                'noTime':
+                    metrics.partialReasonCounts[HabitPartialReason.noTime] ?? 0,
+                'tooTired':
+                    metrics.partialReasonCounts[HabitPartialReason.tooTired] ??
+                    0,
+                'targetTooDifficult':
+                    metrics.partialReasonCounts[HabitPartialReason
+                        .targetTooDifficult] ??
+                    0,
+                'forgotToContinue':
+                    metrics.partialReasonCounts[HabitPartialReason
+                        .forgotToContinue] ??
+                    0,
+                'other':
+                    metrics.partialReasonCounts[HabitPartialReason.other] ?? 0,
+              },
+              'partialWithoutReason': metrics.partialWithoutReason,
+              'quantitativeHabits': metrics.quantitativeHabits
+                  .map(
+                    (s) => {
+                      'title': s.title,
+                      'unit': s.unit,
+                      'target': s.target,
+                      'scheduledOccurrences': s.scheduledOccurrences,
+                      'targetReached': s.targetReached,
+                      'partialOccurrences': s.partialOccurrences,
+                      'totalLogged': s.totalLogged,
+                      'averageLogged': s.averageLogged,
+                    },
+                  )
+                  .toList(),
             },
           )
           .timeout(const Duration(seconds: 20));

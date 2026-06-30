@@ -1,3 +1,4 @@
+import '../../home/domain/habit.dart';
 import '../../home/domain/habit_icons.dart';
 import 'ai_habit_setup_exception.dart';
 import 'frequency_parser.dart';
@@ -55,6 +56,14 @@ HabitSuggestion parseHabitSuggestionResponse(
     weekdays = _readWeekdays(rawResponse['weekdays']);
   }
 
+  final trackingType = _readTrackingType(rawResponse['trackingType']);
+  final targetValue = trackingType == HabitTrackingType.quantitative
+      ? _readPositiveDouble(rawResponse['targetValue'])
+      : null;
+  final unit = trackingType == HabitTrackingType.quantitative
+      ? _readOptionalString(rawResponse['unit'])
+      : null;
+
   return HabitSuggestion(
     title: title.trim(),
     reason: reason.trim(),
@@ -63,7 +72,23 @@ HabitSuggestion parseHabitSuggestionResponse(
     weekdays: weekdays,
     requiredDaysPerWeek: requiredDaysPerWeek,
     minimumVersion: _readOptionalString(rawResponse['minimumVersion']),
+    trackingType: trackingType,
+    targetValue: targetValue,
+    unit: unit,
   );
+}
+
+HabitTrackingType _readTrackingType(Object? raw) {
+  if (raw == 'quantitative') return HabitTrackingType.quantitative;
+  return HabitTrackingType.binary;
+}
+
+double? _readPositiveDouble(Object? raw) {
+  if (raw is num) {
+    final d = raw.toDouble();
+    return d > 0 ? d : null;
+  }
+  return null;
 }
 
 String? _readOptionalString(Object? raw) {

@@ -9,11 +9,24 @@ final _iconOptions = habitIconOptions.values.toList();
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const _unitPresets = [
+  'min',
+  'hours',
+  'steps',
+  'pages',
+  'times',
+  'ml',
+  'L',
+  'km',
+  'kg',
+  'reps',
+];
+const _customPreset = 'Custom';
+
 class AddHabitSheet extends StatefulWidget {
   final Habit? initialHabit;
 
   /// When non-null, the user must select exactly this many specific weekdays.
-  /// The SegmentedButton is hidden and save is blocked until the count matches.
   final int? requiredDaysPerWeek;
 
   const AddHabitSheet({super.key, this.initialHabit, this.requiredDaysPerWeek});
@@ -26,10 +39,14 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _minimumVersionController;
+  late final TextEditingController _targetController;
+  late final TextEditingController _customUnitController;
+  late String _selectedPreset;
   late TimeOfDay _selectedTime;
   late IconData _selectedIcon;
   late bool _everyDay;
   late Set<int> _selectedWeekdays;
+  late HabitTrackingType _trackingType;
   bool _weekdayError = false;
 
   bool get _isEditing => widget.initialHabit != null;
@@ -42,6 +59,22 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     _minimumVersionController = TextEditingController(
       text: initialHabit?.minimumVersion ?? '',
     );
+    _trackingType = initialHabit?.trackingType ?? HabitTrackingType.binary;
+    final tv = initialHabit?.targetValue;
+    _targetController = TextEditingController(
+      text: tv != null ? habitProgressLabel(tv) : '',
+    );
+    final existingUnit = initialHabit?.unit ?? '';
+    if (_unitPresets.contains(existingUnit)) {
+      _selectedPreset = existingUnit;
+      _customUnitController = TextEditingController();
+    } else if (existingUnit.isNotEmpty) {
+      _selectedPreset = _customPreset;
+      _customUnitController = TextEditingController(text: existingUnit);
+    } else {
+      _selectedPreset = _unitPresets.first;
+      _customUnitController = TextEditingController();
+    }
     _selectedTime = initialHabit != null
         ? (parseScheduledTime(initialHabit.scheduledTime) ?? TimeOfDay.now())
         : TimeOfDay.now();
@@ -59,6 +92,8 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   void dispose() {
     _titleController.dispose();
     _minimumVersionController.dispose();
+    _targetController.dispose();
+    _customUnitController.dispose();
     super.dispose();
   }
 
@@ -87,7 +122,16 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     return 'Select at least one day';
   }
 
-  void _save() {
+  String? _validateTarget(String? value) {
+    if (_trackingType != HabitTrackingType.quantitative) return null;
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Required';
+    final d = double.tryParse(text);
+    if (d == null || d <= 0) return 'Must be greater than 0';
+    return null;
+  }
+
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
     final req = widget.requiredDaysPerWeek;
@@ -98,22 +142,64 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
       return;
     }
 
+    // Ask for confirmation when tracking type changes on an existing habit
+    // that already has history.
+    final initialHabit = widget.initialHabit;
+    if (initialHabit != null && initialHabit.trackingType != _trackingType) {
+      final hasHistory =
+          initialHabit.completedDates.isNotEmpty ||
+          initialHabit.minimumCompletedDates.isNotEmpty ||
+          initialHabit.quantitativeProgress.isNotEmpty;
+      if (hasHistory) {
+        if (!mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Change tracking type?'),
+            content: const Text(
+              'Existing history is preserved but will be interpreted '
+              'differently with the new tracking type. Continue?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Change'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+    }
+
     final weekdays = _everyDay
         ? const [1, 2, 3, 4, 5, 6, 7]
         : (_selectedWeekdays.toList()..sort());
 
-    final initialHabit = widget.initialHabit;
     final minVersionText = _minimumVersionController.text.trim();
 
-    // When minimumVersion is removed, clear today's minimum state so the card
-    // no longer shows an impossible "Minimum done" status. Past minimum dates
-    // are preserved for historical statistics.
     var minimumDates = initialHabit?.minimumCompletedDates ?? const <String>{};
     final hadMinimumVersion = initialHabit?.hasMinimumVersion ?? false;
     if (hadMinimumVersion && minVersionText.isEmpty) {
       final today = todayKey();
       if (minimumDates.contains(today)) {
         minimumDates = Set<String>.of(minimumDates)..remove(today);
+      }
+    }
+
+    double? quantTarget;
+    String? quantUnit;
+    if (_trackingType == HabitTrackingType.quantitative) {
+      quantTarget = double.tryParse(_targetController.text.trim());
+      if (_selectedPreset == _customPreset) {
+        final custom = _customUnitController.text.trim();
+        quantUnit = custom.isEmpty ? null : custom;
+      } else {
+        quantUnit = _selectedPreset;
       }
     }
 
@@ -125,12 +211,19 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
       completedDates: initialHabit?.completedDates ?? const {},
       minimumCompletedDates: minimumDates,
       weekdays: weekdays,
-      // Preserve status so editing a paused/archived habit does not resume it.
       status: initialHabit?.status ?? HabitStatus.active,
       pausedFromDate: initialHabit?.pausedFromDate,
       minimumVersion: minVersionText.isEmpty ? null : minVersionText,
+      trackingType: _trackingType,
+      targetValue: quantTarget,
+      unit: quantUnit,
+      quantitativeProgress: initialHabit?.quantitativeProgress ?? const {},
+      skipReasons: initialHabit?.skipReasons ?? const {},
+      skipReasonNotes: initialHabit?.skipReasonNotes ?? const {},
+      partialReasons: initialHabit?.partialReasons ?? const {},
+      partialReasonNotes: initialHabit?.partialReasonNotes ?? const {},
     );
-    Navigator.of(context).pop(habit);
+    if (mounted) Navigator.of(context).pop(habit);
   }
 
   @override
@@ -190,6 +283,97 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Text('Tracking', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                SegmentedButton<HabitTrackingType>(
+                  segments: const [
+                    ButtonSegment(
+                      value: HabitTrackingType.binary,
+                      label: Text('Binary'),
+                    ),
+                    ButtonSegment(
+                      value: HabitTrackingType.quantitative,
+                      label: Text('Amount'),
+                    ),
+                  ],
+                  selected: {_trackingType},
+                  onSelectionChanged: (selection) {
+                    setState(() => _trackingType = selection.first);
+                  },
+                ),
+                if (_trackingType == HabitTrackingType.quantitative) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _targetController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Daily target',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: _validateTarget,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedPreset,
+                          decoration: const InputDecoration(
+                            labelText: 'Unit',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            ..._unitPresets.map(
+                              (u) => DropdownMenuItem(value: u, child: Text(u)),
+                            ),
+                            const DropdownMenuItem(
+                              value: _customPreset,
+                              child: Text(_customPreset),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedPreset = value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedPreset == _customPreset) ...[
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _customUnitController,
+                      decoration: const InputDecoration(
+                        labelText: 'Custom unit',
+                        hintText: 'e.g. glasses, sessions',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLength: 20,
+                      buildCounter:
+                          (
+                            _, {
+                            required currentLength,
+                            required isFocused,
+                            required maxLength,
+                          }) => null,
+                      validator: (value) {
+                        if (_selectedPreset != _customPreset) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Required';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ],
                 const SizedBox(height: 16),
                 Text('Repeat', style: theme.textTheme.titleSmall),
                 if (widget.requiredDaysPerWeek != null) ...[

@@ -152,9 +152,11 @@ void main() {
     // Initially no streak.
     expect(find.text('0 days'), findsWidgets);
 
-    // Tap today (day 27) to mark it complete.
+    // Tap today (day 27) to open the action sheet, then mark it complete.
     await tester.ensureVisible(find.text('27'));
     await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Complete fully'));
     await tester.pumpAndSettle();
 
     // Streak is now 1 day for both current and best.
@@ -245,9 +247,11 @@ void main() {
     final habit = _dailyHabit();
     await _pumpDetails(tester, habit);
 
-    // Jun 27 is today and scheduled. Tap to complete.
+    // Jun 27 is today and scheduled. Tap to open the action sheet.
     await tester.ensureVisible(find.text('27'));
     await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Complete fully'));
     await tester.pumpAndSettle();
 
     // Jun 27 should now be completed → summary says "Completed".
@@ -261,6 +265,8 @@ void main() {
 
     await tester.ensureVisible(find.text('27'));
     await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Complete fully'));
     await tester.pumpAndSettle();
 
     final loaded = await HabitStorage().loadHabits();
@@ -289,6 +295,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Habit title'),
       'Evening walk',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -311,6 +318,7 @@ void main() {
     await tester.tap(find.text('Edit habit'));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -606,6 +614,7 @@ void main() {
     await tester.tap(find.text('Edit habit'));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -647,6 +656,7 @@ void main() {
     await tester.tap(find.text('Edit habit'));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -731,5 +741,166 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Paused'), findsOneWidget);
+  });
+
+  testWidgets('Habit Details supports skip reasons for selected dates', (
+    tester,
+  ) async {
+    final habit = _dailyHabit();
+    await _pumpDetails(tester, habit);
+
+    await tester.ensureVisible(find.text('27'));
+    await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Why was it missed?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Too tired'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Too tired'), findsWidgets);
+    expect(find.text('Most common reason'), findsOneWidget);
+
+    final loaded = await HabitStorage().loadHabits();
+    expect(loaded!.first.skipReasonFor(_today), HabitSkipReason.tooTired);
+  });
+
+  // Test 18: Habit Details calendar distinguishes full/partial/none
+  testWidgets(
+    'calendar shows partial state for quantitative habit with partial progress',
+    (tester) async {
+      const partialKey = '2026-06-27';
+      final habit = Habit(
+        id: '1',
+        title: 'Water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        trackingType: HabitTrackingType.quantitative,
+        targetValue: 3.0,
+        unit: 'L',
+        quantitativeProgress: const {partialKey: 1.5},
+      );
+      SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HabitDetailsScreen(habit: habit, today: _today),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Summary card shows "Not logged" → no; shows partial progress text
+      expect(find.text('1.5 / 3 L'), findsOneWidget);
+      // Calendar cell for today should be visible
+      expect(find.text('27'), findsOneWidget);
+    },
+  );
+
+  // Test 18 (calendar tap): tapping quantitative date opens progress entry
+  testWidgets(
+    'tapping a date on a quantitative habit opens progress entry sheet',
+    (tester) async {
+      final habit = Habit(
+        id: '1',
+        title: 'Water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        trackingType: HabitTrackingType.quantitative,
+        targetValue: 3.0,
+        unit: 'L',
+        // Use a date with no progress so partial reason sheet is NOT triggered
+      );
+      SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HabitDetailsScreen(habit: habit, today: _today),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('27'));
+      await tester.tap(find.text('27'));
+      await tester.pumpAndSettle();
+
+      // Progress entry sheet should appear with target info
+      expect(find.textContaining('3'), findsWidgets);
+      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+
+      // Saving 0 (empty field) clears progress, no partial reason sheet
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(FilledButton, 'Save'), findsNothing);
+    },
+  );
+
+  // Test: After entering partial progress, partial reason sheet is offered
+  testWidgets('entering partial progress chains to partial reason sheet', (
+    tester,
+  ) async {
+    final habit = Habit(
+      id: '1',
+      title: 'Water',
+      scheduledTime: '08:00 AM',
+      icon: Icons.local_drink_outlined,
+      trackingType: HabitTrackingType.quantitative,
+      targetValue: 3.0,
+      unit: 'L',
+    );
+    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HabitDetailsScreen(habit: habit, today: _today),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap today's date
+    await tester.ensureVisible(find.text('27'));
+    await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+
+    // Enter partial value (1.5 of 3)
+    await tester.enterText(find.byType(TextField).first, '1.5');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    // Partial reason sheet appears
+    expect(find.text("Why wasn't the target reached?"), findsWidgets);
+    expect(find.text('No time'), findsOneWidget);
+
+    // Dismiss it
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Status text updated
+    expect(find.textContaining('1.5'), findsWidgets);
+  });
+
+  // Test: HabitDetails status text shows partial reason label
+  testWidgets('status text shows partial reason label when set', (
+    tester,
+  ) async {
+    const key = '2026-06-27';
+    final habit = Habit(
+      id: '1',
+      title: 'Water',
+      scheduledTime: '08:00 AM',
+      icon: Icons.local_drink_outlined,
+      trackingType: HabitTrackingType.quantitative,
+      targetValue: 3.0,
+      unit: 'L',
+      quantitativeProgress: const {key: 1.5},
+      partialReasons: const {key: HabitPartialReason.targetTooDifficult},
+    );
+    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HabitDetailsScreen(habit: habit, today: _today),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Summary card "Today" field should show partial reason
+    expect(find.textContaining('Target too difficult'), findsWidgets);
   });
 }

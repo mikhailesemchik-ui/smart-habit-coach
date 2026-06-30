@@ -394,11 +394,14 @@ void main() {
     expect(find.byType(AddHabitSheet), findsOneWidget);
 
     // Select Mon and Wed (2 days as required).
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Mon'));
     await tester.tap(find.widgetWithText(FilterChip, 'Mon'));
     await tester.pump();
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Wed'));
     await tester.tap(find.widgetWithText(FilterChip, 'Wed'));
     await tester.pump();
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 

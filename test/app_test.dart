@@ -22,12 +22,12 @@ void main() {
     expect(find.text('Drink water'), findsOneWidget);
     expect(find.text('Read 20 minutes'), findsOneWidget);
     expect(find.text('Evening walk'), findsOneWidget);
-    expect(find.text('0 full · 3 remaining'), findsOneWidget);
+    expect(find.text('0 complete · 3 remaining'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked).first);
     await tester.pump();
 
-    expect(find.text('1 full · 2 remaining'), findsOneWidget);
+    expect(find.text('1 complete · 2 remaining'), findsOneWidget);
   });
 
   testWidgets('Adding a habit updates the list and progress summary', (
@@ -45,11 +45,12 @@ void main() {
       find.widgetWithText(TextFormField, 'Habit title'),
       'Stretch',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(find.text('Add habit'), findsNothing);
-    expect(find.text('0 full · 4 remaining'), findsOneWidget);
+    expect(find.text('0 complete · 4 remaining'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('Stretch'), 200);
     expect(find.text('Stretch'), findsOneWidget);
@@ -64,6 +65,7 @@ void main() {
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pump();
 
@@ -78,11 +80,12 @@ void main() {
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.widgetWithText(TextButton, 'Cancel'));
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
 
     expect(find.text('Add habit'), findsNothing);
-    expect(find.text('0 full · 3 remaining'), findsOneWidget);
+    expect(find.text('0 complete · 3 remaining'), findsOneWidget);
   });
 
   testWidgets('Tapping a habit opens its details', (tester) async {
@@ -112,6 +115,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Habit title'),
       'Drink more water',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -140,6 +144,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Habit title'),
       'Should not save',
     );
+    await tester.ensureVisible(find.widgetWithText(TextButton, 'Cancel'));
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
 
@@ -176,7 +181,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Evening walk'), findsOneWidget);
-      expect(find.text('0 full · 3 remaining'), findsOneWidget);
+      expect(find.text('0 complete · 3 remaining'), findsOneWidget);
 
       // Open details again and confirm the delete.
       await tester.tap(find.text('Evening walk'));
@@ -191,7 +196,7 @@ void main() {
 
       // _deleteHabit pops the screen automatically; home screen reloads.
       expect(find.text('Evening walk'), findsNothing);
-      expect(find.text('0 full · 2 remaining'), findsOneWidget);
+      expect(find.text('0 complete · 2 remaining'), findsOneWidget);
     },
   );
 }

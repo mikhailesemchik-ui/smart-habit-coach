@@ -60,6 +60,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Habit title'),
       'Stretch',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -79,6 +80,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Habit title'),
       'Drink more water',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -121,10 +123,12 @@ void main() {
 
       // Default: all 7 chips selected. Deselect everything except Mon (1).
       for (final label in ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+        await tester.ensureVisible(find.widgetWithText(FilterChip, label));
         await tester.tap(find.widgetWithText(FilterChip, label));
         await tester.pump();
       }
 
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
@@ -150,10 +154,12 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final label in ['Tue', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      await tester.ensureVisible(find.widgetWithText(FilterChip, label));
       await tester.tap(find.widgetWithText(FilterChip, label));
       await tester.pump();
     }
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 

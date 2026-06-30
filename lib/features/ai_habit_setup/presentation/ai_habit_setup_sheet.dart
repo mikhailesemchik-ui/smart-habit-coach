@@ -399,6 +399,15 @@ class _SuggestionCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text('Repeat: $repeatLabel', style: theme.textTheme.bodySmall),
+            if (suggestion.trackingType == HabitTrackingType.quantitative &&
+                suggestion.targetValue != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Target: ${habitProgressLabel(suggestion.targetValue!)}'
+                '${suggestion.unit != null ? " ${suggestion.unit}" : ""}',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
             if (suggestion.minimumVersion != null) ...[
               const SizedBox(height: 4),
               Text(

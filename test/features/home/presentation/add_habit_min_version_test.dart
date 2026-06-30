@@ -47,6 +47,7 @@ void main() {
         find.widgetWithText(TextFormField, 'Minimum version (optional)'),
         '',
       );
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
@@ -101,6 +102,7 @@ void main() {
         find.widgetWithText(TextFormField, 'Minimum version (optional)'),
         '',
       );
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
@@ -158,6 +160,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Minimum version (optional)'),
       '',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -208,6 +211,7 @@ void main() {
         find.widgetWithText(TextFormField, 'Minimum version (optional)'),
         'Light stretch',
       );
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 

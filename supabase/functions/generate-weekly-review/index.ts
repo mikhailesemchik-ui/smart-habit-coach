@@ -22,36 +22,37 @@ const WEEKDAY_NAMES = [
   "Sunday",
 ] as const;
 
-const SYSTEM_PROMPT = `You are a supportive, neutral habit-coaching assistant writing a short weekly review from already-calculated stats. Use only the supplied numbers and day names in the user message — never invent, estimate, or recalculate any statistic, day, count, cause, emotion, goal, or personal circumstance.
+const SYSTEM_PROMPT = `You are a supportive, neutral habit-coaching assistant writing a short weekly review from already-calculated stats. Use only the supplied numbers and day names in the user message вЂ” never invent, estimate, or recalculate any statistic, day, count, cause, emotion, goal, or personal circumstance.
 
 Tone rules:
 - Be supportive and neutral. Never shame, blame, criticize, or imply laziness or lack of effort.
+- Never infer a reason for an unlabelled miss, and never invent causes.
 - Never use generic filler phrases such as "keep up the good work", "build momentum", "try harder", or "best effort" (or close variants of them).
 - Do not repeat the same metric (the same percentage or count) in more than one field. Avoid duplicating day names or counts across fields unless naming a day is necessary to point to an action.
 
 Field rules:
-- summary: exactly one short sentence describing the overall pattern of the week. Do not restate the exact completion percentage — it is already shown elsewhere in the app.
+- summary: exactly one short sentence describing the overall pattern of the week. Do not restate the exact completion percentage вЂ” it is already shown elsewhere in the app.
 - strongestInsight: exactly one short, neutral sentence about the supplied strongestDay. If strongestDay is null, note there wasn't a single standout day.
 - weakestInsight: exactly one short, neutral sentence about the supplied weakestDay, without judgment. If weakestDay is null, note there wasn't a single low day this week.
 - recommendation: exactly one concrete, behavior-based action for next week.
   - If completion is already strong, recommend maintaining the current routine rather than adding something new or more complex.
   - If weakestDay looks like it had no completions at all (for example because completedCount is low relative to totalPossibleCount), suggest one small, easy habit for that specific day rather than a broad change.
 
-Examples below are for tone and style only — never reuse their numbers or wording, only the metrics supplied in the actual user message.
+Examples below are for tone and style only вЂ” never reuse their numbers or wording, only the metrics supplied in the actual user message.
 
-Example A — low completion:
+Example A вЂ” low completion:
 Input: {"completionPercent":20,"currentStreak":0,"bestStreak":3,"strongestDay":"Tuesday","weakestDay":"Friday","completedCount":4,"totalPossibleCount":20}
 Output: {"summary":"This week had a slower pace than usual.","strongestInsight":"Tuesday was the day you stayed most on track.","weakestInsight":"Friday saw the least activity this week.","recommendation":"Pick one habit to complete on Friday next week, even just once."}
 
-Example B — partial completion:
+Example B вЂ” partial completion:
 Input: {"completionPercent":55,"currentStreak":2,"bestStreak":4,"strongestDay":"Wednesday","weakestDay":"Sunday","completedCount":11,"totalPossibleCount":20}
 Output: {"summary":"Progress was steady with a few uneven days.","strongestInsight":"Wednesday had your most completed habits.","weakestInsight":"Sunday had fewer completions than the rest of the week.","recommendation":"Set a specific time on Sunday for just one habit to even out the week."}
 
-Example C — strong completion:
+Example C вЂ” strong completion:
 Input: {"completionPercent":90,"currentStreak":6,"bestStreak":6,"strongestDay":"Monday","weakestDay":"Thursday","completedCount":18,"totalPossibleCount":20}
 Output: {"summary":"This was a highly consistent week across most days.","strongestInsight":"Monday had every habit completed.","weakestInsight":"Thursday was slightly lower than the rest of the week.","recommendation":"Keep the same routine next week rather than adding new habits."}
 
-Example D — weakest day with no completions:
+Example D вЂ” weakest day with no completions:
 Input: {"completionPercent":35,"currentStreak":1,"bestStreak":3,"strongestDay":"Tuesday","weakestDay":"Saturday","completedCount":7,"totalPossibleCount":20}
 Output: {"summary":"Activity was concentrated on a few days this week.","strongestInsight":"Tuesday was your most active day.","weakestInsight":"Saturday didn't have any completed habits.","recommendation":"Choose one easy habit to do on Saturday next week, like a two-minute version of it."}`;
 
@@ -62,6 +63,14 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+interface SkipReasonCounts {
+  noTime: number;
+  forgot: number;
+  tooTired: number;
+  tooDifficult: number;
+  other: number;
+}
+
 interface WeeklyReviewMetrics {
   completionRate: number;
   currentStreak: number;
@@ -70,6 +79,8 @@ interface WeeklyReviewMetrics {
   weakestDay: string | null;
   completedCount: number;
   totalPossibleCount: number;
+  skipReasons: SkipReasonCounts;
+  missedWithoutReason: number;
 }
 
 interface AiWeeklyReviewPayload {
@@ -126,6 +137,18 @@ function isValidDayOrNull(value: unknown): value is string | null {
   return value === null || isValidWeekday(value);
 }
 
+function parseSkipReasonCounts(raw: unknown): SkipReasonCounts | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const candidate = raw as Record<string, unknown>;
+  const { noTime, forgot, tooTired, tooDifficult, other } = candidate;
+  if (!isNonNegativeInt(noTime, MAX_COUNT)) return null;
+  if (!isNonNegativeInt(forgot, MAX_COUNT)) return null;
+  if (!isNonNegativeInt(tooTired, MAX_COUNT)) return null;
+  if (!isNonNegativeInt(tooDifficult, MAX_COUNT)) return null;
+  if (!isNonNegativeInt(other, MAX_COUNT)) return null;
+  return { noTime, forgot, tooTired, tooDifficult, other };
+}
+
 // Parses and validates the request body into WeeklyReviewMetrics. Returns
 // null if any field is missing, the wrong type, or out of a reasonable
 // range.
@@ -141,6 +164,8 @@ function parseMetrics(raw: unknown): WeeklyReviewMetrics | null {
     weakestDay,
     completedCount,
     totalPossibleCount,
+    skipReasons,
+    missedWithoutReason,
   } = candidate;
 
   if (
@@ -157,6 +182,9 @@ function parseMetrics(raw: unknown): WeeklyReviewMetrics | null {
   if (!isNonNegativeInt(completedCount, MAX_COUNT)) return null;
   if (!isNonNegativeInt(totalPossibleCount, MAX_COUNT)) return null;
   if (completedCount > totalPossibleCount) return null;
+  const parsedSkipReasons = parseSkipReasonCounts(skipReasons);
+  if (parsedSkipReasons === null) return null;
+  if (!isNonNegativeInt(missedWithoutReason, MAX_COUNT)) return null;
 
   return {
     completionRate,
@@ -166,6 +194,8 @@ function parseMetrics(raw: unknown): WeeklyReviewMetrics | null {
     weakestDay,
     completedCount,
     totalPossibleCount,
+    skipReasons: parsedSkipReasons,
+    missedWithoutReason,
   };
 }
 
@@ -266,6 +296,8 @@ async function callOpenAi(
               weakestDay: metrics.weakestDay,
               completedCount: metrics.completedCount,
               totalPossibleCount: metrics.totalPossibleCount,
+              skipReasons: metrics.skipReasons,
+              missedWithoutReason: metrics.missedWithoutReason,
             }),
           },
         ],
@@ -538,7 +570,10 @@ Deno.serve(async (req: Request) => {
       "strongestDay": "Wednesday",
       "weakestDay": "Sunday",
       "completedCount": 9,
-      "totalPossibleCount": 20
+      "totalPossibleCount": 20,
+      "skipReasons": {"noTime": 3,"forgot": 1,"tooTired": 4,"tooDifficult": 0,"other": 1},
+      "missedWithoutReason": 2
     }'
 
 */
+

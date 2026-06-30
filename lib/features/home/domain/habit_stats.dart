@@ -12,30 +12,34 @@ DateTime _effectiveToday(Habit habit, DateTime today) {
   final pfd = habit.pausedFromDate;
   if (pfd != null) {
     final pauseDay = parseDateKey(pfd);
-    // One day before the pause: the last day the habit was expected.
     final lastActiveDay = pauseDay.subtract(const Duration(days: 1));
-    // Never go past the actual today (e.g. if pause date is in the future).
     return lastActiveDay.isBefore(today) ? lastActiveDay : today;
   }
-  // Paused/archived without a boundary — treat today as the cutoff so no
-  // future days accumulate, but history is still counted.
   return today;
+}
+
+/// True when [habit] counts as "engaged" on [key] for consistency purposes.
+/// Binary: full or minimum completion.
+/// Quantitative: any positive logged progress (or full completion).
+bool _isEngaged(Habit habit, String key) {
+  if (habit.isCompletedOn(key)) return true;
+  if (habit.isQuantitative) {
+    return (habit.quantitativeProgress[key] ?? 0) > 0;
+  }
+  return habit.minimumCompletedDates.contains(key);
 }
 
 /// Current streak for [habit] as of [today].
 ///
 /// Walks backward from [today] counting consecutive scheduled days on
-/// which the habit was completed. Unscheduled days are skipped (neither
-/// counted nor treated as failures). For paused/archived habits the walk
-/// stops at the day before [Habit.pausedFromDate] so inactive days do not
-/// break the streak.
+/// which the habit was completed. For quantitative habits, "completed" means
+/// the daily target was reached. Unscheduled days are skipped.
 int habitCurrentStreak(Habit habit, DateTime today) {
   final ref = _effectiveToday(habit, today);
   final refNorm = DateTime(ref.year, ref.month, ref.day);
   var streak = 0;
   var day = refNorm;
 
-  // Skip the reference day if scheduled but still incomplete.
   if (habit.isScheduledFor(day) && !habit.isCompletedOn(dateKey(day))) {
     day = day.subtract(const Duration(days: 1));
   }
@@ -56,10 +60,6 @@ int habitCurrentStreak(Habit habit, DateTime today) {
 }
 
 /// Best streak for [habit] as of [today].
-///
-/// Longest consecutive run of completed scheduled days in history.
-/// Unscheduled days are skipped. Future dates and post-pause dates are
-/// excluded.
 int habitBestStreak(Habit habit, DateTime today) {
   final ref = _effectiveToday(habit, today);
   final refNorm = DateTime(ref.year, ref.month, ref.day);
@@ -95,13 +95,6 @@ int habitBestStreak(Habit habit, DateTime today) {
 }
 
 /// Completion rate for [habit] over the last 30 calendar days ending on [today].
-///
-/// For paused/archived habits the window ends at the last active day so
-/// inactive days do not count as misses.
-///
-/// Denominator: scheduled days in the 30-day window.
-/// Numerator: scheduled days that were completed.
-/// Returns 0.0 when no days in the window are scheduled.
 double habitCompletionRate(Habit habit, DateTime today) {
   final ref = _effectiveToday(habit, today);
   final refNorm = DateTime(ref.year, ref.month, ref.day);
@@ -119,10 +112,7 @@ double habitCompletionRate(Habit habit, DateTime today) {
   return completed / scheduled;
 }
 
-/// Total completed occurrences for [habit].
-///
-/// Only completions on scheduled days count; completions stored on
-/// unscheduled days (e.g. before the schedule was changed) are excluded.
+/// Total completed occurrences for [habit] on scheduled days only.
 int habitTotalCompleted(Habit habit) {
   return habit.completedDates
       .where((key) => habit.isScheduledFor(parseDateKey(key)))
@@ -141,8 +131,8 @@ int habitTotalEngaged(Habit habit) =>
     habitTotalCompleted(habit) + habitMinimumCompletedCount(habit);
 
 /// Fraction of scheduled days in the last 30 calendar days where the habit
-/// was completed at full OR minimum level, ending at [today] (or the last
-/// active day for paused/archived habits).
+/// was completed at full OR minimum level (binary), or had any positive
+/// logged progress (quantitative).
 double habitConsistencyRate(Habit habit, DateTime today) {
   final ref = _effectiveToday(habit, today);
   final refNorm = DateTime(ref.year, ref.month, ref.day);
@@ -153,33 +143,22 @@ double habitConsistencyRate(Habit habit, DateTime today) {
     final day = refNorm.subtract(Duration(days: i));
     if (!habit.isScheduledFor(day)) continue;
     scheduled++;
-    final key = dateKey(day);
-    if (habit.isCompletedOn(key) || habit.minimumCompletedDates.contains(key)) {
-      engaged++;
-    }
+    if (_isEngaged(habit, dateKey(day))) engaged++;
   }
 
   if (scheduled == 0) return 0;
   return engaged / scheduled;
 }
 
-/// Consistency streak for [habit]: consecutive scheduled days with full OR
-/// minimum completion, counted back from [today] (or the last active day for
-/// paused/archived habits).
+/// Consistency streak: consecutive scheduled days with any engagement (full,
+/// minimum, or for quantitative any positive progress).
 int habitConsistencyStreak(Habit habit, DateTime today) {
   final ref = _effectiveToday(habit, today);
   final refNorm = DateTime(ref.year, ref.month, ref.day);
   var streak = 0;
   var day = refNorm;
 
-  bool engaged(DateTime d) {
-    final key = dateKey(d);
-    return habit.isCompletedOn(key) ||
-        habit.minimumCompletedDates.contains(key);
-  }
-
-  // Skip the reference day if scheduled but not engaged yet.
-  if (habit.isScheduledFor(day) && !engaged(day)) {
+  if (habit.isScheduledFor(day) && !_isEngaged(habit, dateKey(day))) {
     day = day.subtract(const Duration(days: 1));
   }
 
@@ -188,7 +167,7 @@ int habitConsistencyStreak(Habit habit, DateTime today) {
       day = day.subtract(const Duration(days: 1));
       continue;
     }
-    if (engaged(day)) {
+    if (_isEngaged(habit, dateKey(day))) {
       streak++;
       day = day.subtract(const Duration(days: 1));
     } else {
@@ -196,4 +175,220 @@ int habitConsistencyStreak(Habit habit, DateTime today) {
     }
   }
   return streak;
+}
+
+// ── Quantitative-specific stats ──────────────────────────────────────────────
+
+/// Fraction of scheduled days in the last 30 days where [habit] reached
+/// its daily target. Returns 0 for binary habits or habits without a target.
+double habitQuantitativeTargetRate(Habit habit, DateTime today) {
+  if (!habit.isQuantitative) return 0;
+  final target = habit.targetValue;
+  if (target == null || target <= 0) return 0;
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  var scheduled = 0;
+  var reached = 0;
+
+  for (var i = 0; i < 30; i++) {
+    final day = refNorm.subtract(Duration(days: i));
+    if (!habit.isScheduledFor(day)) continue;
+    scheduled++;
+    if (habit.isCompletedOn(dateKey(day))) reached++;
+  }
+
+  if (scheduled == 0) return 0;
+  return reached / scheduled;
+}
+
+/// Fraction of scheduled days in the last 30 days where [habit] logged any
+/// positive progress (regardless of whether target was reached).
+double habitQuantitativeConsistencyRate(Habit habit, DateTime today) {
+  if (!habit.isQuantitative) return 0;
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  var scheduled = 0;
+  var withProgress = 0;
+
+  for (var i = 0; i < 30; i++) {
+    final day = refNorm.subtract(Duration(days: i));
+    if (!habit.isScheduledFor(day)) continue;
+    scheduled++;
+    if ((habit.quantitativeProgress[dateKey(day)] ?? 0) > 0) withProgress++;
+  }
+
+  if (scheduled == 0) return 0;
+  return withProgress / scheduled;
+}
+
+/// Total amount logged for [habit] across all scheduled days.
+double habitQuantitativeTotalLogged(Habit habit) {
+  var total = 0.0;
+  for (final entry in habit.quantitativeProgress.entries) {
+    final day = parseDateKey(entry.key);
+    if (habit.isScheduledFor(day)) total += entry.value;
+  }
+  return total;
+}
+
+/// Average progress per scheduled occurrence over the last 30 days.
+/// Includes days with zero progress in the denominator.
+double habitQuantitativeAverageProgress(Habit habit, DateTime today) {
+  if (!habit.isQuantitative) return 0;
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  var scheduled = 0;
+  var total = 0.0;
+
+  for (var i = 0; i < 30; i++) {
+    final day = refNorm.subtract(Duration(days: i));
+    if (!habit.isScheduledFor(day)) continue;
+    scheduled++;
+    total += habit.quantitativeProgress[dateKey(day)] ?? 0;
+  }
+
+  if (scheduled == 0) return 0;
+  return total / scheduled;
+}
+
+/// Average progress on days where any amount was logged (last 30 days).
+/// Excludes zero-progress days from the denominator.
+double habitQuantitativeAverageLogged(Habit habit, DateTime today) {
+  if (!habit.isQuantitative) return 0;
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  var loggedDays = 0;
+  var total = 0.0;
+
+  for (var i = 0; i < 30; i++) {
+    final day = refNorm.subtract(Duration(days: i));
+    if (!habit.isScheduledFor(day)) continue;
+    final v = habit.quantitativeProgress[dateKey(day)] ?? 0;
+    if (v > 0) {
+      loggedDays++;
+      total += v;
+    }
+  }
+
+  if (loggedDays == 0) return 0;
+  return total / loggedDays;
+}
+
+// ── Skip reason stats ─────────────────────────────────────────────────────────
+
+bool _isCountableMissedReason(Habit habit, String key, DateTime refNorm) {
+  final day = parseDateKey(key);
+  if (day.isAfter(refNorm) || !habit.isScheduledFor(day)) return false;
+  return !habit.completedDates.contains(key) &&
+      !habit.minimumCompletedDates.contains(key);
+}
+
+int habitRecordedSkipReasonCount(Habit habit, DateTime today) {
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  return habit.skipReasons.keys
+      .where((key) => _isCountableMissedReason(habit, key, refNorm))
+      .length;
+}
+
+Map<HabitSkipReason, int> habitSkipReasonCounts(Habit habit, DateTime today) {
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  final counts = {for (final reason in HabitSkipReason.values) reason: 0};
+  for (final entry in habit.skipReasons.entries) {
+    if (_isCountableMissedReason(habit, entry.key, refNorm)) {
+      counts[entry.value] = counts[entry.value]! + 1;
+    }
+  }
+  return counts;
+}
+
+MapEntry<HabitSkipReason, int>? habitMostCommonSkipReason(
+  Habit habit,
+  DateTime today,
+) {
+  final counts = habitSkipReasonCounts(habit, today);
+  MapEntry<HabitSkipReason, int>? best;
+  for (final reason in HabitSkipReason.values) {
+    final count = counts[reason] ?? 0;
+    if (count == 0) continue;
+    if (best == null || count > best.value) {
+      best = MapEntry(reason, count);
+    }
+  }
+  return best;
+}
+
+int habitMissedWithoutReasonCount(
+  Habit habit,
+  DateTime today, {
+  int days = 30,
+}) {
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  var count = 0;
+  for (var i = 0; i < days; i++) {
+    final day = refNorm.subtract(Duration(days: i));
+    if (!habit.isScheduledFor(day)) continue;
+    final key = dateKey(day);
+    if (_isEngaged(habit, key)) continue;
+    if (!habit.skipReasons.containsKey(key)) count++;
+  }
+  return count;
+}
+
+bool _isCountablePartialReason(Habit habit, String key, DateTime refNorm) {
+  if (!habit.isQuantitative) return false;
+  final day = parseDateKey(key);
+  if (day.isAfter(refNorm) || !habit.isScheduledFor(day)) return false;
+  return habit.hasPartialProgressOn(key);
+}
+
+Map<HabitPartialReason, int> habitPartialReasonCounts(
+  Habit habit,
+  DateTime today,
+) {
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  final counts = {for (final reason in HabitPartialReason.values) reason: 0};
+  for (final entry in habit.partialReasons.entries) {
+    if (_isCountablePartialReason(habit, entry.key, refNorm)) {
+      counts[entry.value] = counts[entry.value]! + 1;
+    }
+  }
+  return counts;
+}
+
+MapEntry<HabitPartialReason, int>? habitMostCommonPartialReason(
+  Habit habit,
+  DateTime today,
+) {
+  final counts = habitPartialReasonCounts(habit, today);
+  MapEntry<HabitPartialReason, int>? best;
+  for (final reason in HabitPartialReason.values) {
+    final count = counts[reason] ?? 0;
+    if (count == 0) continue;
+    if (best == null || count > best.value) {
+      best = MapEntry(reason, count);
+    }
+  }
+  return best;
+}
+
+int habitPartialWithoutReasonCount(
+  Habit habit,
+  DateTime today, {
+  int days = 30,
+}) {
+  final ref = _effectiveToday(habit, today);
+  final refNorm = DateTime(ref.year, ref.month, ref.day);
+  var count = 0;
+  for (var i = 0; i < days; i++) {
+    final day = refNorm.subtract(Duration(days: i));
+    if (!habit.isScheduledFor(day)) continue;
+    final key = dateKey(day);
+    if (!habit.hasPartialProgressOn(key)) continue;
+    if (!habit.partialReasons.containsKey(key)) count++;
+  }
+  return count;
 }

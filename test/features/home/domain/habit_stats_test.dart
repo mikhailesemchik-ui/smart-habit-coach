@@ -198,4 +198,170 @@ void main() {
       expect(habitTotalCompleted(h), 1); // only Jun 26 counts
     });
   });
+
+  group('quantitative stats', () {
+    // Monday habit scheduled daily; ref = Jun 27.
+    Habit quantDaily({
+      double target = 3.0,
+      Map<String, double> progress = const {},
+      Set<String> completedDates = const {},
+    }) => Habit(
+      id: 'q',
+      title: 'Water',
+      scheduledTime: '08:00 AM',
+      icon: Icons.local_drink_outlined,
+      trackingType: HabitTrackingType.quantitative,
+      targetValue: target,
+      unit: 'L',
+      quantitativeProgress: progress,
+      completedDates: completedDates,
+    );
+
+    // Test 19: target completion rate is correct
+    test('habitQuantitativeTargetRate counts only target-reached days', () {
+      // 30-day window ending Jun 27. Mark Jun 26 + Jun 25 as full (target met),
+      // Jun 27 as partial.
+      final habit = quantDaily(
+        target: 3.0,
+        progress: const {
+          '2026-06-25': 3.0,
+          '2026-06-26': 3.0,
+          '2026-06-27': 1.5,
+        },
+        completedDates: const {'2026-06-25', '2026-06-26'},
+      );
+      final rate = habitQuantitativeTargetRate(habit, _ref);
+      // 2 reached out of 30 scheduled daily days
+      expect(rate, closeTo(2 / 30, 0.001));
+    });
+
+    // Test 20: consistency rate uses positive progress
+    test('habitQuantitativeConsistencyRate counts any positive progress', () {
+      final habit = quantDaily(
+        target: 3.0,
+        progress: const {
+          '2026-06-25': 1.0,
+          '2026-06-26': 3.0,
+          '2026-06-27': 2.5,
+        },
+        completedDates: const {'2026-06-26'},
+      );
+      final rate = habitQuantitativeConsistencyRate(habit, _ref);
+      // 3 days with progress out of 30
+      expect(rate, closeTo(3 / 30, 0.001));
+    });
+
+    // Test 21: average progress is correct
+    test('habitQuantitativeAverageLogged averages over days with progress', () {
+      final habit = quantDaily(
+        target: 3.0,
+        progress: const {'2026-06-25': 1.0, '2026-06-26': 3.0},
+      );
+      final avg = habitQuantitativeAverageLogged(habit, _ref);
+      // (1.0 + 3.0) / 2 = 2.0
+      expect(avg, closeTo(2.0, 0.001));
+    });
+
+    // Test 22: streak requires reaching target
+    test('habitCurrentStreak counts only days where target is reached', () {
+      // Jun 26 (Fri) — target reached, Jun 27 (Sat) — only partial.
+      final habit = quantDaily(
+        target: 3.0,
+        progress: const {'2026-06-26': 3.0, '2026-06-27': 1.5},
+        completedDates: const {'2026-06-26'},
+      );
+      // today not completed (partial only) → skip
+      // Jun 26: completed → streak 1
+      // Jun 25: not completed → break
+      expect(habitCurrentStreak(habit, _ref), 1);
+    });
+
+    // Test 23: unscheduled dates do not count
+    test('quantitative stats ignore unscheduled dates', () {
+      final habit = Habit(
+        id: 'q2',
+        title: 'Gym',
+        scheduledTime: '08:00 AM',
+        icon: Icons.fitness_center_outlined,
+        trackingType: HabitTrackingType.quantitative,
+        targetValue: 30.0,
+        unit: 'min',
+        weekdays: const [1, 5], // Mon + Fri only
+        // Jun 27 is Saturday — unscheduled
+        quantitativeProgress: const {'2026-06-27': 30.0},
+      );
+      // Unscheduled entry should be ignored
+      expect(habitQuantitativeConsistencyRate(habit, _ref), 0.0);
+    });
+
+    test('habitConsistencyRate uses progress for quantitative habits', () {
+      // Partial progress counts as engaged for consistency.
+      final habit = quantDaily(
+        target: 3.0,
+        progress: const {'2026-06-27': 1.5}, // partial, not in completedDates
+      );
+      final rate = habitConsistencyRate(habit, _ref);
+      // 1 day with any progress out of 30
+      expect(rate, closeTo(1 / 30, 0.001));
+    });
+
+    test(
+      'habitMissedWithoutReasonCount treats partial progress as engaged',
+      () {
+        // Jun 27: partial progress (1.5 L), no skip reason.
+        // Should NOT count as missed-without-reason.
+        final habit = quantDaily(
+          target: 3.0,
+          progress: const {'2026-06-27': 1.5},
+        );
+        final missed = habitMissedWithoutReasonCount(habit, _ref, days: 1);
+        expect(missed, 0);
+      },
+    );
+  });
+
+  group('skip reason statistics', () {
+    final today = DateTime(2026, 6, 27);
+
+    test(
+      'most-common-reason calculation works and resolves ties by enum order',
+      () {
+        final habit = Habit(
+          id: 'skip',
+          title: 'Skip habit',
+          scheduledTime: '08:00 AM',
+          icon: Icons.local_drink_outlined,
+          skipReasons: const {
+            '2026-06-22': HabitSkipReason.forgot,
+            '2026-06-23': HabitSkipReason.noTime,
+          },
+        );
+
+        final mostCommon = habitMostCommonSkipReason(habit, today);
+
+        expect(mostCommon, isNotNull);
+        expect(mostCommon!.key, HabitSkipReason.noTime);
+        expect(mostCommon.value, 1);
+      },
+    );
+
+    test(
+      'missed-without-reason count excludes completed and reasoned dates',
+      () {
+        final habit = Habit(
+          id: 'skip',
+          title: 'Skip habit',
+          scheduledTime: '08:00 AM',
+          icon: Icons.local_drink_outlined,
+          completedDates: const {'2026-06-27'},
+          minimumCompletedDates: const {'2026-06-26'},
+          skipReasons: const {'2026-06-25': HabitSkipReason.tooTired},
+        );
+
+        final missed = habitMissedWithoutReasonCount(habit, today, days: 4);
+
+        expect(missed, 1);
+      },
+    );
+  });
 }

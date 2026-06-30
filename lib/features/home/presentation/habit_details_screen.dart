@@ -6,8 +6,14 @@ import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/habit_stats.dart';
 import 'add_habit_sheet.dart';
+import 'partial_reason_sheet.dart';
+import 'progress_entry_sheet.dart';
+import 'skip_reason_sheet.dart';
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+enum _DateAction { skipReason }
+
 const _monthNames = [
   'January',
   'February',
@@ -62,23 +68,73 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     _displayedMonth = DateTime(_today.year, _today.month, 1);
   }
 
-  Future<void> _toggle(DateTime day) async {
-    if (day.isAfter(_today)) return;
-    final key = dateKey(day);
-    final Habit updated;
-    if (_habit.hasMinimumVersion) {
-      // Cycle: none → full → minimum → none
-      final next = switch (_habit.completionStatusFor(key)) {
-        HabitCompletionStatus.none => HabitCompletionStatus.full,
-        HabitCompletionStatus.full => HabitCompletionStatus.minimum,
-        HabitCompletionStatus.minimum => HabitCompletionStatus.none,
-      };
-      updated = _habit.setCompletionStatus(key, next);
-    } else {
-      updated = _habit.toggleDate(key);
-    }
+  Future<void> _setDateStatus(
+    DateTime day,
+    HabitCompletionStatus status,
+  ) async {
+    if (day.isAfter(_today) || !_habit.isScheduledFor(day)) return;
+    final updated = _habit.setCompletionStatus(dateKey(day), status);
     setState(() => _habit = updated);
     await _persistHabit(updated);
+  }
+
+  Future<void> _setDateSkipReason(DateTime day) async {
+    if (day.isAfter(_today) || !_habit.isScheduledFor(day)) return;
+    final result = await showSkipReasonSheet(
+      context: context,
+      habit: _habit,
+      date: day,
+    );
+    if (result == null || !mounted) return;
+    final updated = _habit.setSkipReason(day, result.reason, note: result.note);
+    setState(() => _habit = updated);
+    await _persistHabit(updated);
+  }
+
+  Future<void> _setPartialReason(DateTime day) async {
+    final result = await showPartialReasonSheet(
+      context: context,
+      habit: _habit,
+      date: day,
+    );
+    if (result == null || !mounted) return;
+    final updated = _habit.setPartialReason(
+      day,
+      result.reason,
+      note: result.note,
+    );
+    setState(() => _habit = updated);
+    await _persistHabit(updated);
+  }
+
+  Future<void> _openDateActions(DateTime day) async {
+    if (day.isAfter(_today) || !_habit.isScheduledFor(day)) return;
+    if (_habit.isQuantitative) {
+      final result = await showProgressEntrySheet(
+        context: context,
+        habit: _habit,
+        date: day,
+      );
+      if (result == null || !mounted) return;
+      var updated = _habit.setProgress(day, result);
+      setState(() => _habit = updated);
+      await _persistHabit(updated);
+      if (!mounted) return;
+      if (updated.hasPartialProgressOn(dateKey(day))) {
+        await _setPartialReason(day);
+      }
+      return;
+    }
+    final result = await showModalBottomSheet<Object>(
+      context: context,
+      builder: (_) => _DateStatusSheet(habit: _habit, day: day),
+    );
+    if (result == null || !mounted) return;
+    if (result == _DateAction.skipReason) {
+      await _setDateSkipReason(day);
+    } else if (result is HabitCompletionStatus) {
+      await _setDateStatus(day, result);
+    }
   }
 
   Future<void> _persistHabit(Habit habit) async {
@@ -117,7 +173,6 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     if (updated == null || !mounted) return;
     setState(() => _habit = updated);
     await _persistHabit(updated);
-    // Only reschedule if the habit is still active.
     if (updated.isActive) {
       await _notifications.scheduleHabitReminder(updated);
     }
@@ -213,6 +268,50 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     };
   }
 
+  String _statusTextFor(DateTime day) {
+    if (_habit.isQuantitative) {
+      return _quantitativeStatusText(day);
+    }
+    final key = dateKey(day);
+    return switch (_habit.completionStatusFor(key)) {
+      HabitCompletionStatus.full => 'Completed',
+      HabitCompletionStatus.minimum => 'Minimum done',
+      HabitCompletionStatus.none => _skipReasonTextFor(day) ?? 'Not completed',
+    };
+  }
+
+  String _quantitativeStatusText(DateTime day) {
+    final progress = _habit.progressFor(day);
+    final target = _habit.targetValue ?? 0;
+    final unit = _habit.unit ?? '';
+    if (progress == 0) {
+      final reason = _habit.skipReasonFor(day);
+      if (reason != null) {
+        return 'Missed · ${habitSkipReasonLabel(reason)}';
+      }
+      return 'Not logged';
+    }
+    final p = habitProgressLabel(progress);
+    final t = habitProgressLabel(target);
+    final progressStr = target > 0
+        ? '$p / $t${unit.isNotEmpty ? " $unit" : ""}'
+        : p;
+    if (_habit.isTargetReached(day)) return 'Done · $progressStr';
+    final partialReason = _habit.partialReasonFor(day);
+    if (partialReason != null) {
+      return '$progressStr · Partial · ${habitPartialReasonLabel(partialReason)}';
+    }
+    return progressStr;
+  }
+
+  String? _skipReasonTextFor(DateTime day) {
+    final reason = _habit.skipReasonFor(day);
+    if (reason == null) return null;
+    final note = _habit.skipReasonNoteFor(day);
+    final label = habitSkipReasonLabel(reason);
+    return note == null ? 'Missed · $label' : 'Missed · $label: $note';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -280,19 +379,20 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
             _LabelValue(label: 'Reminder', value: _habit.scheduledTime),
             const SizedBox(height: 4),
             _LabelValue(label: 'Repeat', value: _repeatLabel()),
+            if (_habit.isQuantitative && _habit.targetValue != null) ...[
+              const SizedBox(height: 4),
+              _LabelValue(
+                label: 'Target',
+                value:
+                    '${habitProgressLabel(_habit.targetValue!)}${_habit.unit != null ? " ${_habit.unit}" : ""}',
+              ),
+            ],
             if (_habit.hasMinimumVersion) ...[
               const SizedBox(height: 4),
               _LabelValue(label: 'Minimum', value: _habit.minimumVersion!),
             ],
             const SizedBox(height: 4),
-            _LabelValue(
-              label: 'Today',
-              value: switch (_habit.completionStatusFor(dateKey(_today))) {
-                HabitCompletionStatus.full => 'Completed',
-                HabitCompletionStatus.minimum => 'Minimum done',
-                HabitCompletionStatus.none => 'Not completed',
-              },
-            ),
+            _LabelValue(label: 'Today', value: _statusTextFor(_today)),
           ],
         ),
       ),
@@ -302,6 +402,17 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
   Widget _buildStatsCard(ThemeData theme) {
     final streak = habitCurrentStreak(_habit, _today);
     final best = habitBestStreak(_habit, _today);
+    final mostCommonReason = habitMostCommonSkipReason(_habit, _today);
+
+    if (_habit.isQuantitative) {
+      return _buildQuantitativeStatsCard(
+        theme,
+        streak: streak,
+        best: best,
+        mostCommonReason: mostCommonReason,
+      );
+    }
+
     final rate = habitCompletionRate(_habit, _today);
     final total = habitTotalCompleted(_habit);
     final minCount = habitMinimumCompletedCount(_habit);
@@ -359,6 +470,93 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
                     ),
                   ),
                 ],
+              ),
+            ],
+            if (mostCommonReason != null) ...[
+              const SizedBox(height: 12),
+              _StatTile(
+                label: 'Most common reason',
+                value:
+                    '${habitSkipReasonLabel(mostCommonReason.key)} · '
+                    '${mostCommonReason.value} '
+                    '${mostCommonReason.value == 1 ? 'time' : 'times'}',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuantitativeStatsCard(
+    ThemeData theme, {
+    required int streak,
+    required int best,
+    required MapEntry<HabitSkipReason, int>? mostCommonReason,
+  }) {
+    final targetRate = habitQuantitativeTargetRate(_habit, _today);
+    final consistencyRate = habitQuantitativeConsistencyRate(_habit, _today);
+    final avgLogged = habitQuantitativeAverageLogged(_habit, _today);
+    final unit = _habit.unit ?? '';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Statistics', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatTile(
+                    label: 'Target streak',
+                    value: _pluralDays(streak),
+                  ),
+                ),
+                Expanded(
+                  child: _StatTile(
+                    label: 'Best streak',
+                    value: _pluralDays(best),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatTile(
+                    label: 'Target rate (30d)',
+                    value: '${(targetRate * 100).round()}%',
+                  ),
+                ),
+                Expanded(
+                  child: _StatTile(
+                    label: 'Consistency (30d)',
+                    value: '${(consistencyRate * 100).round()}%',
+                  ),
+                ),
+              ],
+            ),
+            if (avgLogged > 0) ...[
+              const SizedBox(height: 12),
+              _StatTile(
+                label: 'Avg when logged',
+                value:
+                    '${habitProgressLabel(avgLogged)}'
+                    '${unit.isNotEmpty ? " $unit" : ""}',
+              ),
+            ],
+            if (mostCommonReason != null) ...[
+              const SizedBox(height: 12),
+              _StatTile(
+                label: 'Most common reason',
+                value:
+                    '${habitSkipReasonLabel(mostCommonReason.key)} · '
+                    '${mostCommonReason.value} '
+                    '${mostCommonReason.value == 1 ? 'time' : 'times'}',
               ),
             ],
           ],
@@ -433,16 +631,24 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
             final isFuture = day.isAfter(_today);
             final isToday = day == _today;
             final isScheduled = _habit.isScheduledFor(day);
-            final dayStatus = _habit.completionStatusFor(dateKey(day));
+            final key = dateKey(day);
+            final dayStatus = _habit.completionStatusFor(key);
+            final isPartial =
+                _habit.isQuantitative && _habit.hasPartialProgressOn(key);
 
             return _CalendarDayCell(
               day: day,
               isScheduled: isScheduled,
               isCompleted: dayStatus == HabitCompletionStatus.full,
-              isMinimum: dayStatus == HabitCompletionStatus.minimum,
+              isMinimum:
+                  !_habit.isQuantitative &&
+                  dayStatus == HabitCompletionStatus.minimum,
+              isPartial: isPartial,
               isToday: isToday,
               isFuture: isFuture,
-              onTap: (isFuture || !isScheduled) ? null : () => _toggle(day),
+              onTap: (isFuture || !isScheduled)
+                  ? null
+                  : () => _openDateActions(day),
             );
           },
         ),
@@ -502,6 +708,78 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DateStatusSheet extends StatelessWidget {
+  final Habit habit;
+  final DateTime day;
+
+  const _DateStatusSheet({required this.habit, required this.day});
+
+  @override
+  Widget build(BuildContext context) {
+    final key = dateKey(day);
+    final status = habit.completionStatusFor(key);
+    final reason = habit.skipReasonFor(day);
+    final reasonText = reason == null ? null : habitSkipReasonLabel(reason);
+
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              habit.title,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          if (reasonText != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text('Missed · $reasonText'),
+            ),
+          ListTile(
+            leading: Icon(
+              status == HabitCompletionStatus.full
+                  ? Icons.check_circle
+                  : Icons.check_circle_outline,
+            ),
+            title: const Text('Complete fully'),
+            onTap: () => Navigator.of(context).pop(HabitCompletionStatus.full),
+          ),
+          if (habit.hasMinimumVersion)
+            ListTile(
+              leading: Icon(
+                status == HabitCompletionStatus.minimum
+                    ? Icons.adjust
+                    : Icons.adjust_outlined,
+              ),
+              title: const Text('Minimum done'),
+              subtitle: Text(habit.minimumVersion ?? ''),
+              onTap: () =>
+                  Navigator.of(context).pop(HabitCompletionStatus.minimum),
+            ),
+          ListTile(
+            leading: Icon(
+              status == HabitCompletionStatus.none
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+            ),
+            title: const Text('Not completed'),
+            onTap: () => Navigator.of(context).pop(HabitCompletionStatus.none),
+          ),
+          ListTile(
+            leading: const Icon(Icons.more_horiz),
+            title: const Text('Why was it missed?'),
+            onTap: () => Navigator.of(context).pop(_DateAction.skipReason),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }
@@ -567,6 +845,7 @@ class _CalendarDayCell extends StatelessWidget {
   final bool isScheduled;
   final bool isCompleted;
   final bool isMinimum;
+  final bool isPartial;
   final bool isToday;
   final bool isFuture;
   final VoidCallback? onTap;
@@ -576,6 +855,7 @@ class _CalendarDayCell extends StatelessWidget {
     required this.isScheduled,
     required this.isCompleted,
     required this.isMinimum,
+    this.isPartial = false,
     required this.isToday,
     required this.isFuture,
     required this.onTap,
@@ -600,6 +880,9 @@ class _CalendarDayCell extends StatelessWidget {
     } else if (isMinimum) {
       bg = cs.tertiary.withValues(alpha: 0.25);
       textColor = cs.tertiary;
+    } else if (isPartial) {
+      bg = cs.secondary.withValues(alpha: 0.25);
+      textColor = cs.secondary;
     } else {
       bg = cs.error.withValues(alpha: 0.15);
       textColor = cs.error;

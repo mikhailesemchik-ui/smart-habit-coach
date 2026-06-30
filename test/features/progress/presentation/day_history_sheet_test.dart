@@ -238,4 +238,145 @@ void main() {
 
     expect(find.text('1 of 3 completed'), findsOneWidget);
   });
+
+  // Test 17: DayHistory shows quantitative tile
+  testWidgets('shows quantitative habit tile with Log button', (tester) async {
+    final habit = Habit(
+      id: 'q',
+      title: 'Water',
+      scheduledTime: '08:00 AM',
+      icon: Icons.local_drink_outlined,
+      trackingType: HabitTrackingType.quantitative,
+      targetValue: 3.0,
+      unit: 'L',
+      weekdays: const [1, 2, 3, 4, 5, 6, 7],
+    );
+
+    await tester.pumpWidget(_sheet([habit]));
+    await tester.pump();
+
+    expect(find.text('Water'), findsOneWidget);
+    // Log button confirms quantitative tile rendered
+    expect(find.text('Log'), findsOneWidget);
+    // No checkbox for quantitative
+    expect(find.byType(CheckboxListTile), findsNothing);
+  });
+
+  // Test 17b: quantitative edit saves to storage
+  testWidgets('quantitative progress saves to storage', (tester) async {
+    final habit = Habit(
+      id: 'q',
+      title: 'Water',
+      scheduledTime: '08:00 AM',
+      icon: Icons.local_drink_outlined,
+      trackingType: HabitTrackingType.quantitative,
+      targetValue: 3.0,
+      unit: 'L',
+      weekdays: const [1, 2, 3, 4, 5, 6, 7],
+    );
+
+    await tester.pumpWidget(_sheet([habit]));
+    await tester.pump();
+
+    // Tap Log button
+    await tester.tap(find.text('Log'));
+    await tester.pumpAndSettle();
+
+    // Enter value in progress entry sheet
+    await tester.enterText(find.byType(TextField).first, '2.5');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final loaded = await HabitStorage().loadHabits();
+    expect(loaded, isNotNull);
+    expect(loaded!.first.progressFor(_day), closeTo(2.5, 0.001));
+  });
+
+  testWidgets('DayHistorySheet supports adding and clearing skip reasons', (
+    tester,
+  ) async {
+    List<Habit>? captured;
+    final habits = [_habit('1', 'Run')];
+
+    await tester.pumpWidget(
+      _sheet(habits, onHabitsChanged: (updated) => captured = updated),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Why was it missed?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Too difficult'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(captured!.first.skipReasonFor(_day), HabitSkipReason.tooDifficult);
+    expect(find.textContaining('Too difficult'), findsOneWidget);
+
+    await tester.tap(find.text('Why was it missed?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Clear reason'));
+    await tester.pumpAndSettle();
+
+    expect(captured!.first.skipReasonFor(_day), isNull);
+  });
+
+  // Test: DayHistory shows partial reason button for partial quantitative habit
+  testWidgets(
+    'partial quantitative habit shows "Why wasn\'t the target reached?" button',
+    (tester) async {
+      final habit = Habit(
+        id: '1',
+        title: 'Water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        weekdays: const [1, 2, 3, 4, 5, 6, 7],
+        trackingType: HabitTrackingType.quantitative,
+        targetValue: 3.0,
+        unit: 'L',
+        quantitativeProgress: const {_dateKey: 1.5},
+      );
+
+      await tester.pumpWidget(_sheet([habit]));
+      await tester.pump();
+
+      expect(find.text("Why wasn't the target reached?"), findsOneWidget);
+      expect(find.text('Why was it missed?'), findsNothing);
+    },
+  );
+
+  // Test: DayHistory saves partial reason and shows label in subtitle
+  testWidgets(
+    'saves partial reason and shows compact label in DayHistory tile subtitle',
+    (tester) async {
+      List<Habit>? captured;
+      final habit = Habit(
+        id: '1',
+        title: 'Water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        weekdays: const [1, 2, 3, 4, 5, 6, 7],
+        trackingType: HabitTrackingType.quantitative,
+        targetValue: 3.0,
+        unit: 'L',
+        quantitativeProgress: const {_dateKey: 1.5},
+      );
+
+      await tester.pumpWidget(
+        _sheet([habit], onHabitsChanged: (updated) => captured = updated),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text("Why wasn't the target reached?"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Too tired'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(
+        captured!.first.partialReasonFor(_day),
+        HabitPartialReason.tooTired,
+      );
+      expect(find.textContaining('Too tired'), findsOneWidget);
+    },
+  );
 }

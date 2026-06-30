@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../home/data/habit_storage.dart';
 import '../../home/domain/date_key.dart';
 import '../../home/domain/habit.dart';
+import '../../home/presentation/partial_reason_sheet.dart';
+import '../../home/presentation/progress_entry_sheet.dart';
+import '../../home/presentation/skip_reason_sheet.dart';
 
 const _monthAbbrevs = [
   'Jan',
@@ -102,6 +105,80 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     widget.onHabitsChanged(updated);
   }
 
+  Future<void> _setSkipReason(int scheduledIndex) async {
+    final habit = _scheduled[scheduledIndex];
+    final result = await showSkipReasonSheet(
+      context: context,
+      habit: habit,
+      date: widget.day,
+    );
+    if (result == null) return;
+    final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final updated = List<Habit>.of(_allHabits);
+    updated[allIndex] = updated[allIndex].setSkipReason(
+      widget.day,
+      result.reason,
+      note: result.note,
+    );
+    await _storage.saveHabits(updated);
+    if (!mounted) return;
+    setState(() {
+      _allHabits = updated;
+      _scheduled = _allHabits
+          .where((h) => h.isScheduledFor(widget.day))
+          .toList();
+    });
+    widget.onHabitsChanged(updated);
+  }
+
+  Future<void> _setPartialReason(int scheduledIndex) async {
+    final habit = _scheduled[scheduledIndex];
+    final result = await showPartialReasonSheet(
+      context: context,
+      habit: habit,
+      date: widget.day,
+    );
+    if (result == null || !mounted) return;
+    final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final updated = List<Habit>.of(_allHabits);
+    updated[allIndex] = updated[allIndex].setPartialReason(
+      widget.day,
+      result.reason,
+      note: result.note,
+    );
+    await _storage.saveHabits(updated);
+    if (!mounted) return;
+    setState(() {
+      _allHabits = updated;
+      _scheduled = _allHabits
+          .where((h) => h.isScheduledFor(widget.day))
+          .toList();
+    });
+    widget.onHabitsChanged(updated);
+  }
+
+  Future<void> _setQuantitativeProgress(int scheduledIndex) async {
+    final habit = _scheduled[scheduledIndex];
+    final result = await showProgressEntrySheet(
+      context: context,
+      habit: habit,
+      date: widget.day,
+    );
+    if (result == null || !mounted) return;
+    final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final updated = List<Habit>.of(_allHabits);
+    updated[allIndex] = updated[allIndex].setProgress(widget.day, result);
+    await _storage.saveHabits(updated);
+    if (!mounted) return;
+    setState(() {
+      _allHabits = updated;
+      _scheduled = _allHabits
+          .where((h) => h.isScheduledFor(widget.day))
+          .toList();
+    });
+    widget.onHabitsChanged(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -175,18 +252,31 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
                       itemCount: _scheduled.length,
                       itemBuilder: (_, index) {
                         final habit = _scheduled[index];
+                        if (habit.isQuantitative) {
+                          return _QuantitativeHabitTile(
+                            habit: habit,
+                            day: widget.day,
+                            dateKey: _dateKey,
+                            onLogProgress: () =>
+                                _setQuantitativeProgress(index),
+                            onSkipReason: () => _setSkipReason(index),
+                            onPartialReason: () => _setPartialReason(index),
+                          );
+                        }
                         if (habit.hasMinimumVersion) {
                           return _MinVersionTile(
                             habit: habit,
                             dateKey: _dateKey,
                             onChanged: (s) => _setStatus(index, s),
+                            onSkipReason: () => _setSkipReason(index),
                           );
                         }
-                        return CheckboxListTile(
-                          secondary: Icon(habit.icon),
-                          title: Text(habit.title),
-                          value: habit.isCompletedOn(_dateKey),
-                          onChanged: (_) => _toggle(index),
+                        return _BinaryHabitTile(
+                          habit: habit,
+                          day: widget.day,
+                          dateKey: _dateKey,
+                          onToggle: () => _toggle(index),
+                          onSkipReason: () => _setSkipReason(index),
                         );
                       },
                     ),
@@ -198,16 +288,156 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
   }
 }
 
+class _QuantitativeHabitTile extends StatelessWidget {
+  final Habit habit;
+  final DateTime day;
+  final String dateKey;
+  final VoidCallback onLogProgress;
+  final VoidCallback onSkipReason;
+  final VoidCallback onPartialReason;
+
+  const _QuantitativeHabitTile({
+    required this.habit,
+    required this.day,
+    required this.dateKey,
+    required this.onLogProgress,
+    required this.onSkipReason,
+    required this.onPartialReason,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final progress = habit.quantitativeProgress[dateKey] ?? 0;
+    final target = habit.targetValue ?? 0;
+    final unit = habit.unit ?? '';
+    final isComplete = habit.completedDates.contains(dateKey);
+    final isPartial = habit.hasPartialProgressOn(dateKey);
+    final skipReason = habit.skipReasonFor(day);
+    final skipLabel = skipReason == null
+        ? null
+        : habitSkipReasonLabel(skipReason);
+    final partialReason = habit.partialReasonFor(day);
+    final partialLabel = partialReason == null
+        ? null
+        : habitPartialReasonLabel(partialReason);
+
+    final targetStr = target > 0
+        ? '${habitProgressLabel(target)}${unit.isNotEmpty ? " $unit" : ""}'
+        : unit;
+    final progressStr = target > 0
+        ? '${habitProgressLabel(progress)} / $targetStr'
+        : habitProgressLabel(progress);
+
+    final subtitle = isComplete
+        ? '$progressStr · Done'
+        : isPartial && partialLabel != null
+        ? '$progressStr · Partial · $partialLabel'
+        : isPartial
+        ? progressStr
+        : skipLabel != null
+        ? 'Missed · $skipLabel'
+        : target > 0
+        ? 'Target: $targetStr'
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          leading: Icon(
+            habit.icon,
+            color: isComplete
+                ? cs.primary
+                : isPartial
+                ? cs.secondary
+                : null,
+          ),
+          title: Text(habit.title),
+          subtitle: subtitle != null ? Text(subtitle) : null,
+          trailing: TextButton(
+            onPressed: onLogProgress,
+            child: Text(isComplete || isPartial ? 'Edit' : 'Log'),
+          ),
+        ),
+        if (progress == 0 && !isComplete)
+          Padding(
+            padding: const EdgeInsets.only(left: 56, bottom: 4),
+            child: TextButton.icon(
+              onPressed: onSkipReason,
+              icon: const Icon(Icons.more_horiz),
+              label: const Text('Why was it missed?'),
+            ),
+          ),
+        if (isPartial)
+          Padding(
+            padding: const EdgeInsets.only(left: 56, bottom: 4),
+            child: TextButton.icon(
+              onPressed: onPartialReason,
+              icon: const Icon(Icons.more_horiz),
+              label: const Text("Why wasn't the target reached?"),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _BinaryHabitTile extends StatelessWidget {
+  final Habit habit;
+  final DateTime day;
+  final String dateKey;
+  final VoidCallback onToggle;
+  final VoidCallback onSkipReason;
+
+  const _BinaryHabitTile({
+    required this.habit,
+    required this.day,
+    required this.dateKey,
+    required this.onToggle,
+    required this.onSkipReason,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = habit.skipReasonFor(day);
+    final reasonLabel = reason == null ? null : habitSkipReasonLabel(reason);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CheckboxListTile(
+          secondary: Icon(habit.icon),
+          title: Text(habit.title),
+          subtitle: reasonLabel == null ? null : Text('Missed · $reasonLabel'),
+          value: habit.isCompletedOn(dateKey),
+          onChanged: (_) => onToggle(),
+        ),
+        if (!habit.isCompletedOn(dateKey))
+          Padding(
+            padding: const EdgeInsets.only(left: 56, bottom: 4),
+            child: TextButton.icon(
+              onPressed: onSkipReason,
+              icon: const Icon(Icons.more_horiz),
+              label: const Text('Why was it missed?'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Three-state list tile for habits that have a minimum version configured.
 class _MinVersionTile extends StatelessWidget {
   final Habit habit;
   final String dateKey;
   final void Function(HabitCompletionStatus) onChanged;
+  final VoidCallback onSkipReason;
 
   const _MinVersionTile({
     required this.habit,
     required this.dateKey,
     required this.onChanged,
+    required this.onSkipReason,
   });
 
   @override
@@ -215,35 +445,55 @@ class _MinVersionTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final status = habit.completionStatusFor(dateKey);
 
-    return ListTile(
-      leading: Icon(habit.icon),
-      title: Text(habit.title),
-      subtitle: status == HabitCompletionStatus.minimum
-          ? Text('Minimum done', style: TextStyle(color: cs.tertiary))
-          : null,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _StatusIconButton(
-            icon: Icons.radio_button_unchecked,
-            selected: status == HabitCompletionStatus.none,
-            color: cs.onSurfaceVariant,
-            onTap: () => onChanged(HabitCompletionStatus.none),
+    final reason = habit.skipReasons[dateKey];
+    final reasonLabel = reason == null ? null : habitSkipReasonLabel(reason);
+    final subtitle = status == HabitCompletionStatus.minimum
+        ? Text('Minimum done', style: TextStyle(color: cs.tertiary))
+        : reasonLabel == null
+        ? null
+        : Text('Missed · $reasonLabel');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          leading: Icon(habit.icon),
+          title: Text(habit.title),
+          subtitle: subtitle,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StatusIconButton(
+                icon: Icons.radio_button_unchecked,
+                selected: status == HabitCompletionStatus.none,
+                color: cs.onSurfaceVariant,
+                onTap: () => onChanged(HabitCompletionStatus.none),
+              ),
+              _StatusIconButton(
+                icon: Icons.adjust,
+                selected: status == HabitCompletionStatus.minimum,
+                color: cs.tertiary,
+                onTap: () => onChanged(HabitCompletionStatus.minimum),
+              ),
+              _StatusIconButton(
+                icon: Icons.check_circle,
+                selected: status == HabitCompletionStatus.full,
+                color: cs.primary,
+                onTap: () => onChanged(HabitCompletionStatus.full),
+              ),
+            ],
           ),
-          _StatusIconButton(
-            icon: Icons.adjust,
-            selected: status == HabitCompletionStatus.minimum,
-            color: cs.tertiary,
-            onTap: () => onChanged(HabitCompletionStatus.minimum),
+        ),
+        if (status == HabitCompletionStatus.none)
+          Padding(
+            padding: const EdgeInsets.only(left: 56, bottom: 4),
+            child: TextButton.icon(
+              onPressed: onSkipReason,
+              icon: const Icon(Icons.more_horiz),
+              label: const Text('Why was it missed?'),
+            ),
           ),
-          _StatusIconButton(
-            icon: Icons.check_circle,
-            selected: status == HabitCompletionStatus.full,
-            color: cs.primary,
-            onTap: () => onChanged(HabitCompletionStatus.full),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }

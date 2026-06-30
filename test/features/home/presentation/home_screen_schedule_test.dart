@@ -158,13 +158,15 @@ void main() {
     await tester.tap(find.text('Specific days'));
     await tester.pumpAndSettle();
 
-    // Deselect all chips
+    // Deselect all chips (scrolling to each to ensure visibility)
     for (final label in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      await tester.ensureVisible(find.widgetWithText(FilterChip, label));
       await tester.tap(find.widgetWithText(FilterChip, label));
       await tester.pump();
     }
 
-    // Try to save
+    // Try to save (scroll to button first as form may be longer than screen)
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pump();
 

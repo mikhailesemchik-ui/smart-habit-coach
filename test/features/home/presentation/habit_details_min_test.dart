@@ -74,17 +74,23 @@ void main() {
       await tester.ensureVisible(find.text('27'));
       await tester.tap(find.text('27'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Complete fully'));
+      await tester.pumpAndSettle();
 
       expect(find.text('Completed'), findsOneWidget);
 
       await tester.ensureVisible(find.text('27'));
       await tester.tap(find.text('27'));
       await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Minimum done'));
+      await tester.pumpAndSettle();
 
-      expect(find.text('Minimum'), findsOneWidget);
+      expect(find.text('Minimum done'), findsWidgets);
 
       await tester.ensureVisible(find.text('27'));
       await tester.tap(find.text('27'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Not completed'));
       await tester.pumpAndSettle();
 
       expect(find.text('Not completed'), findsOneWidget);
@@ -103,12 +109,15 @@ void main() {
     await tester.ensureVisible(find.text('27'));
     await tester.tap(find.text('27'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Complete fully'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Completed'), findsOneWidget);
-    expect(find.text('Minimum'), findsNothing);
 
     await tester.ensureVisible(find.text('27'));
     await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Not completed'));
     await tester.pumpAndSettle();
 
     expect(find.text('Not completed'), findsOneWidget);

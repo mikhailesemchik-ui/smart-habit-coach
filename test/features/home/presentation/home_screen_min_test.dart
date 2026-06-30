@@ -128,8 +128,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    // Minimum done: progress count should be 0 full, 1 minimum, 1 remaining.
-    expect(find.text('0 full · 1 minimum · 1 remaining'), findsOneWidget);
+    // Minimum done: progress count should be 0 complete, 1 partial, 1 remaining.
+    expect(find.text('0 complete · 1 partial · 1 remaining'), findsOneWidget);
     // Weighted score: (0 + 0.5*1)/2 = 25%
     expect(find.text('25% progress score'), findsOneWidget);
   });
@@ -203,7 +203,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('1 full · 1 minimum · 1 remaining'), findsOneWidget);
+    expect(find.text('1 complete · 1 partial · 1 remaining'), findsOneWidget);
   });
 
   // Test 4: full completion still counts as 1.0
@@ -222,7 +222,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Score = 1/2 = 50%.
-    expect(find.text('1 full · 1 remaining'), findsOneWidget);
+    expect(find.text('1 complete · 1 remaining'), findsOneWidget);
     expect(find.text('50% progress score'), findsOneWidget);
   });
 
@@ -249,7 +249,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Score = (1 + 0.5*1)/4 = 1.5/4 = 37.5% → rounds to 38%.
-    expect(find.text('1 full · 1 minimum · 2 remaining'), findsOneWidget);
+    expect(find.text('1 complete · 1 partial · 2 remaining'), findsOneWidget);
     expect(find.text('38% progress score'), findsOneWidget);
   });
 
