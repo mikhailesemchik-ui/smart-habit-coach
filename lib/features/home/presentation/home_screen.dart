@@ -8,6 +8,7 @@ import '../domain/habit.dart';
 import '../domain/sample_habits.dart';
 import 'add_habit_sheet.dart';
 import 'habit_details_screen.dart';
+import 'note_sheet.dart';
 import 'partial_reason_sheet.dart';
 import 'progress_entry_sheet.dart';
 import 'skip_reason_sheet.dart';
@@ -53,6 +54,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Habit> _habits = [];
   bool _isLoading = true;
 
+  // Session-only undo for the last state-changing action.
+  Habit? _undoPrev;
+  int? _undoHabitIndex;
+
   @override
   void initState() {
     super.initState();
@@ -69,12 +74,55 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // ── Undo ─────────────────────────────────────────────────────────────────
+
+  void _showUndoSnackBar(String message, Habit prev, int index) {
+    _undoPrev = prev;
+    _undoHabitIndex = index;
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(label: 'Undo', onPressed: _undo),
+        ),
+      ).closed.then((reason) {
+        if (!mounted) return;
+        if (reason != SnackBarClosedReason.action) {
+          setState(() {
+            _undoPrev = null;
+            _undoHabitIndex = null;
+          });
+        }
+      });
+  }
+
+  void _undo() {
+    final prev = _undoPrev;
+    final idx = _undoHabitIndex;
+    _undoPrev = null;
+    _undoHabitIndex = null;
+    if (prev == null || idx == null || idx < 0 || idx >= _habits.length) {
+      return;
+    }
+    setState(() => _habits[idx] = prev);
+    _storage.saveHabits(_habits);
+  }
+
+  // ── Habit mutations ───────────────────────────────────────────────────────
+
   void _setHabitStatus(String id, HabitCompletionStatus status) {
+    final index = _habits.indexWhere((h) => h.id == id);
+    if (index == -1) return;
+    final prev = _habits[index];
     setState(() {
-      final index = _habits.indexWhere((h) => h.id == id);
       _habits[index] = _habits[index].setCompletionStatus(todayKey(), status);
     });
     _storage.saveHabits(_habits);
+    _showUndoSnackBar('Habit updated', prev, index);
   }
 
   Future<void> _pickStatus(Habit habit) async {
@@ -83,7 +131,15 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (_) => _MinVersionPickerSheet(habit: habit),
     );
-    if (result != null && mounted) _setHabitStatus(habit.id, result);
+    if (result == null || !mounted) return;
+    final index = _habits.indexWhere((h) => h.id == habit.id);
+    if (index == -1) return;
+    final prev = _habits[index];
+    setState(() {
+      _habits[index] = _habits[index].setCompletionStatus(todayKey(), result);
+    });
+    _storage.saveHabits(_habits);
+    _showUndoSnackBar('Habit updated', prev, index);
   }
 
   Future<void> _pickSkipReason(Habit habit) async {
@@ -95,8 +151,10 @@ class _HomeScreenState extends State<HomeScreen> {
       date: today,
     );
     if (result == null || !mounted) return;
+    final index = _habits.indexWhere((h) => h.id == habit.id);
+    if (index == -1) return;
+    final prev = _habits[index];
     setState(() {
-      final index = _habits.indexWhere((h) => h.id == habit.id);
       _habits[index] = _habits[index].setSkipReason(
         today,
         result.reason,
@@ -104,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     });
     _storage.saveHabits(_habits);
+    _showUndoSnackBar('Habit updated', prev, index);
   }
 
   Future<void> _logProgress(Habit habit) async {
@@ -115,11 +174,18 @@ class _HomeScreenState extends State<HomeScreen> {
       date: today,
     );
     if (result == null || !mounted) return;
+    final index = _habits.indexWhere((h) => h.id == habit.id);
+    if (index == -1) return;
+    final prev = _habits[index];
     setState(() {
-      final index = _habits.indexWhere((h) => h.id == habit.id);
       _habits[index] = _habits[index].setProgress(today, result);
     });
     _storage.saveHabits(_habits);
+    _showUndoSnackBar(
+      result == 0 ? 'Progress reset' : 'Habit updated',
+      prev,
+      index,
+    );
   }
 
   Future<void> _pickPartialReason(Habit habit) async {
@@ -131,8 +197,10 @@ class _HomeScreenState extends State<HomeScreen> {
       date: today,
     );
     if (result == null || !mounted) return;
+    final index = _habits.indexWhere((h) => h.id == habit.id);
+    if (index == -1) return;
+    final prev = _habits[index];
     setState(() {
-      final index = _habits.indexWhere((h) => h.id == habit.id);
       _habits[index] = _habits[index].setPartialReason(
         today,
         result.reason,
@@ -140,6 +208,29 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     });
     _storage.saveHabits(_habits);
+    _showUndoSnackBar('Habit updated', prev, index);
+  }
+
+  Future<void> _editNote(Habit habit) async {
+    if (!mounted) return;
+    final today = DateTime.now();
+    final result = await showNoteSheet(
+      context: context,
+      habit: habit,
+      date: today,
+    );
+    if (result == null || !mounted) return;
+    final index = _habits.indexWhere((h) => h.id == habit.id);
+    if (index == -1) return;
+    final prev = _habits[index];
+    setState(() {
+      _habits[index] = _habits[index].setNote(
+        today,
+        result.isEmpty ? null : result,
+      );
+    });
+    _storage.saveHabits(_habits);
+    _showUndoSnackBar('Note saved', prev, index);
   }
 
   void _addHabit(Habit habit) {
@@ -305,6 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => _openHabitDetails(habit),
                 onSkipReason: () => _pickSkipReason(habit),
                 onPartialReason: () => _pickPartialReason(habit),
+                onNote: () => _editNote(habit),
               ),
             ),
         ],
@@ -374,6 +466,7 @@ class _HabitCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onSkipReason;
   final VoidCallback onPartialReason;
+  final VoidCallback onNote;
 
   const _HabitCard({
     required this.habit,
@@ -381,6 +474,7 @@ class _HabitCard extends StatelessWidget {
     required this.onTap,
     required this.onSkipReason,
     required this.onPartialReason,
+    required this.onNote,
   });
 
   @override
@@ -393,7 +487,9 @@ class _HabitCard extends StatelessWidget {
 
   Widget _buildBinaryCard(BuildContext context) {
     final theme = Theme.of(context);
+    final today = DateTime.now();
     final status = habit.completionStatusFor(todayKey());
+    final note = habit.noteFor(today);
 
     final icon = switch (status) {
       HabitCompletionStatus.full => Icons.check_circle,
@@ -405,9 +501,9 @@ class _HabitCard extends StatelessWidget {
       HabitCompletionStatus.minimum => theme.colorScheme.tertiary,
       HabitCompletionStatus.none => null,
     };
-    final reason = habit.skipReasonFor(DateTime.now());
+    final reason = habit.skipReasonFor(today);
     final reasonLabel = reason == null ? null : habitSkipReasonLabel(reason);
-    final subtitle = status == HabitCompletionStatus.minimum
+    final statusLine = status == HabitCompletionStatus.minimum
         ? '${habit.scheduledTime} · Minimum done'
         : reasonLabel == null
         ? habit.scheduledTime
@@ -418,16 +514,44 @@ class _HabitCard extends StatelessWidget {
         onTap: onTap,
         leading: Icon(habit.icon, color: theme.colorScheme.primary),
         title: Text(habit.title),
-        subtitle: Text(subtitle),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(statusLine),
+            if (note != null)
+              Text(
+                '"$note"',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (status == HabitCompletionStatus.none)
-              IconButton(
-                tooltip: 'Why was it missed?',
-                icon: const Icon(Icons.more_horiz),
-                onPressed: onSkipReason,
-              ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'skip') onSkipReason();
+                if (value == 'note') onNote();
+              },
+              itemBuilder: (_) => [
+                if (status == HabitCompletionStatus.none)
+                  const PopupMenuItem(
+                    value: 'skip',
+                    child: Text('Why was it missed?'),
+                  ),
+                PopupMenuItem(
+                  value: 'note',
+                  child: Text(note != null ? 'Edit note' : 'Add note'),
+                ),
+              ],
+            ),
             IconButton(
               icon: Icon(icon, color: iconColor),
               onPressed: onToggle,
@@ -457,13 +581,14 @@ class _HabitCard extends StatelessWidget {
     final partialLabel = partialReason == null
         ? null
         : habitPartialReasonLabel(partialReason);
+    final note = habit.noteFor(today);
 
     final progressText = target > 0
         ? '${habitProgressLabel(progress)} / ${habitProgressLabel(target)}'
               '${unit.isNotEmpty ? " $unit" : ""}'
         : habitProgressLabel(progress);
 
-    final subtitle = skipLabel != null && progress == 0
+    final statusLine = skipLabel != null && progress == 0
         ? '${habit.scheduledTime} · Missed · $skipLabel'
         : isComplete
         ? '${habit.scheduledTime} · $progressText'
@@ -483,22 +608,50 @@ class _HabitCard extends StatelessWidget {
               color: isComplete ? cs.primary : cs.onSurfaceVariant,
             ),
             title: Text(habit.title),
-            subtitle: Text(subtitle),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(statusLine),
+                if (note != null)
+                  Text(
+                    '"$note"',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (progress == 0 && !isComplete)
-                  IconButton(
-                    tooltip: 'Why was it missed?',
-                    icon: const Icon(Icons.more_horiz),
-                    onPressed: onSkipReason,
-                  ),
-                if (isPartial)
-                  IconButton(
-                    tooltip: "Why wasn't the target reached?",
-                    icon: const Icon(Icons.more_horiz),
-                    onPressed: onPartialReason,
-                  ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'skip') onSkipReason();
+                    if (value == 'partial') onPartialReason();
+                    if (value == 'note') onNote();
+                  },
+                  itemBuilder: (_) => [
+                    if (progress == 0 && !isComplete)
+                      const PopupMenuItem(
+                        value: 'skip',
+                        child: Text('Why was it missed?'),
+                      ),
+                    if (isPartial)
+                      const PopupMenuItem(
+                        value: 'partial',
+                        child: Text("Why wasn't the target reached?"),
+                      ),
+                    PopupMenuItem(
+                      value: 'note',
+                      child: Text(note != null ? 'Edit note' : 'Add note'),
+                    ),
+                  ],
+                ),
                 IconButton(
                   tooltip: isComplete ? 'Update progress' : 'Log progress',
                   icon: Icon(

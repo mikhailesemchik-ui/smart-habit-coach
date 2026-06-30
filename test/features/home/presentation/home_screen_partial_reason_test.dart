@@ -36,10 +36,14 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    // The "Why wasn't the target reached?" tooltip is shown for partial
-    expect(find.byTooltip("Why wasn't the target reached?"), findsOneWidget);
-    // The "Why was it missed?" tooltip is NOT shown (progress > 0)
-    expect(find.byTooltip('Why was it missed?'), findsNothing);
+    // Open the overflow menu to see which actions are available.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+
+    // The partial reason item is shown for partial progress.
+    expect(find.text("Why wasn't the target reached?"), findsOneWidget);
+    // The skip reason item is NOT shown (progress > 0).
+    expect(find.text('Why was it missed?'), findsNothing);
   });
 
   // Test: Tapping partial reason button opens the partial reason sheet
@@ -67,7 +71,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip("Why wasn't the target reached?"));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Why wasn't the target reached?"));
     await tester.pumpAndSettle();
 
     // Sheet title
@@ -104,7 +110,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip("Why wasn't the target reached?"));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Why wasn't the target reached?"));
     await tester.pumpAndSettle();
     await tester.tap(find.text('No time'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -139,7 +147,11 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Why was it missed?'), findsOneWidget);
-    expect(find.byTooltip("Why wasn't the target reached?"), findsNothing);
+    // Open the overflow menu to see which actions are available.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Why was it missed?'), findsOneWidget);
+    expect(find.text("Why wasn't the target reached?"), findsNothing);
   });
 }

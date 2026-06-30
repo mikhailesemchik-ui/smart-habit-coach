@@ -95,7 +95,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Why was it missed?'));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -103,7 +105,9 @@ void main() {
 
     expect(find.textContaining('Too tired'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Why was it missed?'));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Forgot'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -111,7 +115,9 @@ void main() {
 
     expect(find.textContaining('Forgot'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Why was it missed?'));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Clear reason'));
     await tester.pumpAndSettle();
@@ -197,7 +203,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Why was it missed?'));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Other'));
     await tester.pumpAndSettle();

@@ -324,6 +324,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<String>(
+                          isExpanded: true,
                           initialValue: _selectedPreset,
                           decoration: const InputDecoration(
                             labelText: 'Unit',

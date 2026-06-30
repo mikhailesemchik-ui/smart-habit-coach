@@ -821,6 +821,11 @@ void main() {
       await tester.tap(find.text('27'));
       await tester.pumpAndSettle();
 
+      // Intermediate action sheet for quantitative date.
+      expect(find.text('Log progress'), findsOneWidget);
+      await tester.tap(find.text('Log progress'));
+      await tester.pumpAndSettle();
+
       // Progress entry sheet should appear with target info
       expect(find.textContaining('3'), findsWidgets);
       expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
@@ -857,6 +862,10 @@ void main() {
     // Tap today's date
     await tester.ensureVisible(find.text('27'));
     await tester.tap(find.text('27'));
+    await tester.pumpAndSettle();
+
+    // Intermediate action sheet for quantitative date.
+    await tester.tap(find.text('Log progress'));
     await tester.pumpAndSettle();
 
     // Enter partial value (1.5 of 3)

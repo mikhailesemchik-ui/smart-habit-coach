@@ -171,4 +171,48 @@ void main() {
     expect(find.widgetWithText(TextFormField, 'Custom unit'), findsOneWidget);
     expect(find.text('sessions'), findsWidgets);
   });
+
+  // Test: unit selector does not overflow on a narrow screen
+  testWidgets('unit selector does not overflow on a narrow screen', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1.0;
+
+    await tester.pumpWidget(_sheet());
+    await tester.pumpAndSettle();
+
+    await _pumpQuantitativeForm(tester);
+    await tester.pumpAndSettle();
+
+    // DropdownButtonFormField is visible; isExpanded: true prevents overflow.
+    expect(find.text('min'), findsOneWidget);
+    // No exception == no overflow error.
+  });
+
+  // Test: long preset units ('hours', 'steps', 'pages') remain usable on narrow screen
+  testWidgets('long preset units remain usable on narrow screen', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1.0;
+
+    final existing = Habit(
+      id: '1',
+      title: 'Run',
+      scheduledTime: '07:00 AM',
+      icon: Icons.directions_run_outlined,
+      trackingType: HabitTrackingType.quantitative,
+      targetValue: 10000,
+      unit: 'steps',
+    );
+
+    await tester.pumpWidget(_sheet(initialHabit: existing));
+    await tester.pumpAndSettle();
+
+    // 'steps' is visible as the selected value without overflow.
+    expect(find.text('steps'), findsWidgets);
+  });
 }

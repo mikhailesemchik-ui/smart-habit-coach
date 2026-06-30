@@ -6,13 +6,14 @@ import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/habit_stats.dart';
 import 'add_habit_sheet.dart';
+import 'note_sheet.dart';
 import 'partial_reason_sheet.dart';
 import 'progress_entry_sheet.dart';
 import 'skip_reason_sheet.dart';
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-enum _DateAction { skipReason }
+enum _DateAction { skipReason, note }
 
 const _monthNames = [
   'January',
@@ -58,6 +59,9 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
   late DateTime _displayedMonth;
   final HabitStorage _storage = HabitStorage();
 
+  /// Saved before a date mutation for session-only undo.
+  Habit? _undoHabit;
+
   @override
   void initState() {
     super.initState();
@@ -68,14 +72,62 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     _displayedMonth = DateTime(_today.year, _today.month, 1);
   }
 
+  // ── Undo ───────────────────────────────────────────────────────────────────
+
+  void _showUndoSnackBar(String message) {
+    if (!mounted || _undoHabit == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(label: 'Undo', onPressed: _undoDateChange),
+        ),
+      ).closed.then((reason) {
+        if (!mounted) return;
+        if (reason != SnackBarClosedReason.action) {
+          setState(() => _undoHabit = null);
+        }
+      });
+  }
+
+  Future<void> _undoDateChange() async {
+    final prev = _undoHabit;
+    _undoHabit = null;
+    if (prev == null) return;
+    setState(() => _habit = prev);
+    await _persistHabit(prev);
+  }
+
+  Future<void> _editNote(DateTime day) async {
+    if (!mounted) return;
+    final result = await showNoteSheet(
+      context: context,
+      habit: _habit,
+      date: day,
+    );
+    if (result == null || !mounted) return;
+    _undoHabit = _habit;
+    final updated = _habit.setNote(day, result.isEmpty ? null : result);
+    setState(() => _habit = updated);
+    await _persistHabit(updated);
+    _showUndoSnackBar('Note saved');
+  }
+
+  // ── Habit mutations ─────────────────────────────────────────────────────────
+
   Future<void> _setDateStatus(
     DateTime day,
     HabitCompletionStatus status,
   ) async {
     if (day.isAfter(_today) || !_habit.isScheduledFor(day)) return;
+    _undoHabit = _habit;
     final updated = _habit.setCompletionStatus(dateKey(day), status);
     setState(() => _habit = updated);
     await _persistHabit(updated);
+    _showUndoSnackBar('Habit updated');
   }
 
   Future<void> _setDateSkipReason(DateTime day) async {
@@ -86,9 +138,11 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
       date: day,
     );
     if (result == null || !mounted) return;
+    _undoHabit = _habit;
     final updated = _habit.setSkipReason(day, result.reason, note: result.note);
     setState(() => _habit = updated);
     await _persistHabit(updated);
+    _showUndoSnackBar('Habit updated');
   }
 
   Future<void> _setPartialReason(DateTime day) async {
@@ -98,6 +152,7 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
       date: day,
     );
     if (result == null || !mounted) return;
+    _undoHabit = _habit;
     final updated = _habit.setPartialReason(
       day,
       result.reason,
@@ -105,20 +160,33 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     );
     setState(() => _habit = updated);
     await _persistHabit(updated);
+    _showUndoSnackBar('Habit updated');
   }
 
   Future<void> _openDateActions(DateTime day) async {
     if (day.isAfter(_today) || !_habit.isScheduledFor(day)) return;
     if (_habit.isQuantitative) {
+      final action = await showModalBottomSheet<String>(
+        context: context,
+        builder: (_) => _QuantCalendarDateSheet(habit: _habit, day: day),
+      );
+      if (action == null || !mounted) return;
+      if (action == 'note') {
+        await _editNote(day);
+        return;
+      }
+      // action == 'progress'
       final result = await showProgressEntrySheet(
         context: context,
         habit: _habit,
         date: day,
       );
       if (result == null || !mounted) return;
+      _undoHabit = _habit;
       var updated = _habit.setProgress(day, result);
       setState(() => _habit = updated);
       await _persistHabit(updated);
+      _showUndoSnackBar(result == 0 ? 'Progress reset' : 'Habit updated');
       if (!mounted) return;
       if (updated.hasPartialProgressOn(dateKey(day))) {
         await _setPartialReason(day);
@@ -132,6 +200,8 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     if (result == null || !mounted) return;
     if (result == _DateAction.skipReason) {
       await _setDateSkipReason(day);
+    } else if (result == _DateAction.note) {
+      await _editNote(day);
     } else if (result is HabitCompletionStatus) {
       await _setDateStatus(day, result);
     }
@@ -393,6 +463,10 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
             ],
             const SizedBox(height: 4),
             _LabelValue(label: 'Today', value: _statusTextFor(_today)),
+            if (_habit.noteFor(_today) != null) ...[
+              const SizedBox(height: 4),
+              _LabelValue(label: 'Note', value: '"${_habit.noteFor(_today)}"'),
+            ],
           ],
         ),
       ),
@@ -727,58 +801,69 @@ class _DateStatusSheet extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              habit.title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          if (reasonText != null)
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('Missed · $reasonText'),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                habit.title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-          ListTile(
-            leading: Icon(
-              status == HabitCompletionStatus.full
-                  ? Icons.check_circle
-                  : Icons.check_circle_outline,
-            ),
-            title: const Text('Complete fully'),
-            onTap: () => Navigator.of(context).pop(HabitCompletionStatus.full),
-          ),
-          if (habit.hasMinimumVersion)
+            if (reasonText != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text('Missed · $reasonText'),
+              ),
             ListTile(
               leading: Icon(
-                status == HabitCompletionStatus.minimum
-                    ? Icons.adjust
-                    : Icons.adjust_outlined,
+                status == HabitCompletionStatus.full
+                    ? Icons.check_circle
+                    : Icons.check_circle_outline,
               ),
-              title: const Text('Minimum done'),
-              subtitle: Text(habit.minimumVersion ?? ''),
+              title: const Text('Complete fully'),
               onTap: () =>
-                  Navigator.of(context).pop(HabitCompletionStatus.minimum),
+                  Navigator.of(context).pop(HabitCompletionStatus.full),
             ),
-          ListTile(
-            leading: Icon(
-              status == HabitCompletionStatus.none
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+            if (habit.hasMinimumVersion)
+              ListTile(
+                leading: Icon(
+                  status == HabitCompletionStatus.minimum
+                      ? Icons.adjust
+                      : Icons.adjust_outlined,
+                ),
+                title: const Text('Minimum done'),
+                subtitle: Text(habit.minimumVersion ?? ''),
+                onTap: () =>
+                    Navigator.of(context).pop(HabitCompletionStatus.minimum),
+              ),
+            ListTile(
+              leading: Icon(
+                status == HabitCompletionStatus.none
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: const Text('Not completed'),
+              onTap: () =>
+                  Navigator.of(context).pop(HabitCompletionStatus.none),
             ),
-            title: const Text('Not completed'),
-            onTap: () => Navigator.of(context).pop(HabitCompletionStatus.none),
-          ),
-          ListTile(
-            leading: const Icon(Icons.more_horiz),
-            title: const Text('Why was it missed?'),
-            onTap: () => Navigator.of(context).pop(_DateAction.skipReason),
-          ),
-          const SizedBox(height: 8),
-        ],
+            ListTile(
+              leading: const Icon(Icons.more_horiz),
+              title: const Text('Why was it missed?'),
+              onTap: () => Navigator.of(context).pop(_DateAction.skipReason),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notes),
+              title: Text(
+                habit.noteFor(day) != null ? 'Edit note' : 'Add note',
+              ),
+              onTap: () => Navigator.of(context).pop(_DateAction.note),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -836,6 +921,45 @@ class _StatTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Intermediate action sheet for tapping a quantitative calendar date.
+class _QuantCalendarDateSheet extends StatelessWidget {
+  final Habit habit;
+  final DateTime day;
+
+  const _QuantCalendarDateSheet({required this.habit, required this.day});
+
+  @override
+  Widget build(BuildContext context) {
+    final note = habit.noteFor(day);
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              habit.title,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.add_circle_outline),
+            title: const Text('Log progress'),
+            onTap: () => Navigator.of(context).pop('progress'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notes),
+            title: Text(note != null ? 'Edit note' : 'Add note'),
+            onTap: () => Navigator.of(context).pop('note'),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }

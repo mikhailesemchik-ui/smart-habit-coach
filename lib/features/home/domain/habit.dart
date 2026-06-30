@@ -119,6 +119,10 @@ class Habit {
   /// Optional notes for partial reason entries (only for "Other").
   final Map<String, String> partialReasonNotes;
 
+  /// Optional free-text notes tied to a specific local date (yyyy-MM-dd).
+  /// Notes are independent of completion state and never affect statistics.
+  final Map<String, String> completionNotes;
+
   const Habit({
     required this.id,
     required this.title,
@@ -138,6 +142,7 @@ class Habit {
     this.quantitativeProgress = const {},
     this.partialReasons = const {},
     this.partialReasonNotes = const {},
+    this.completionNotes = const {},
   });
 
   bool get isActive => status == HabitStatus.active;
@@ -159,6 +164,27 @@ class Habit {
   String? partialReasonNoteFor(DateTime date) {
     final note = partialReasonNotes[dateKey(date)]?.trim();
     return note == null || note.isEmpty ? null : note;
+  }
+
+  /// Returns the note stored for [date], or null if none.
+  String? noteFor(DateTime date) {
+    final note = completionNotes[dateKey(date)]?.trim();
+    return (note == null || note.isEmpty) ? null : note;
+  }
+
+  /// Returns a copy with the note for [date] set.
+  /// A null or whitespace-only [note] removes the entry.
+  /// Notes do not affect completion, progress, or statistics.
+  Habit setNote(DateTime date, String? note) {
+    final key = dateKey(date);
+    final newNotes = Map<String, String>.of(completionNotes);
+    final trimmed = note?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      newNotes.remove(key);
+    } else {
+      newNotes[key] = trimmed;
+    }
+    return copyWith(completionNotes: newNotes);
   }
 
   /// True when this habit has a non-blank minimum version configured.
@@ -410,6 +436,7 @@ class Habit {
     Object? unit = _omit,
     Map<String, HabitPartialReason>? partialReasons,
     Map<String, String>? partialReasonNotes,
+    Map<String, String>? completionNotes,
   }) {
     return Habit(
       id: id,
@@ -437,6 +464,7 @@ class Habit {
       unit: identical(unit, _omit) ? this.unit : unit as String?,
       partialReasons: partialReasons ?? this.partialReasons,
       partialReasonNotes: partialReasonNotes ?? this.partialReasonNotes,
+      completionNotes: completionNotes ?? this.completionNotes,
     );
   }
 
@@ -485,6 +513,7 @@ class Habit {
         ),
       if (partialReasonNotes.isNotEmpty)
         'partialReasonNotes': partialReasonNotes,
+      if (completionNotes.isNotEmpty) 'completionNotes': completionNotes,
     };
   }
 
@@ -512,6 +541,7 @@ class Habit {
       ),
       partialReasons: _readPartialReasons(json['partialReasons'], weekdays),
       partialReasonNotes: _readStringMap(json['partialReasonNotes']),
+      completionNotes: _readStringMap(json['completionNotes']),
     );
   }
 

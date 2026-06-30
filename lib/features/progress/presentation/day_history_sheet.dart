@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../home/data/habit_storage.dart';
 import '../../home/domain/date_key.dart';
 import '../../home/domain/habit.dart';
+import '../../home/presentation/note_sheet.dart';
 import '../../home/presentation/partial_reason_sheet.dart';
 import '../../home/presentation/progress_entry_sheet.dart';
 import '../../home/presentation/skip_reason_sheet.dart';
@@ -70,9 +71,47 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     _scheduled = _allHabits.where((h) => h.isScheduledFor(widget.day)).toList();
   }
 
+  // ── Undo ─────────────────────────────────────────────────────────────────
+
+  /// Shows an undo SnackBar. Uses closure captures so the callback is
+  /// independent of any instance state fields — this keeps each undo
+  /// opportunity bound to the exact snapshot it was created with, even when
+  /// the sheet has been disposed or further changes have occurred.
+  void _showUndoSnackBar(String message, Habit prevHabit, int allIndex) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              final updated = List<Habit>.of(_allHabits);
+              updated[allIndex] = prevHabit;
+              await _storage.saveHabits(updated);
+              if (!mounted) return;
+              setState(() {
+                _allHabits = updated;
+                _scheduled = _allHabits
+                    .where((h) => h.isScheduledFor(widget.day))
+                    .toList();
+              });
+              widget.onHabitsChanged(updated);
+            },
+          ),
+        ),
+      );
+  }
+
+  // ── Habit mutations ───────────────────────────────────────────────────────
+
   Future<void> _toggle(int scheduledIndex) async {
     final habit = _scheduled[scheduledIndex];
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
     updated[allIndex] = updated[allIndex].toggleDate(_dateKey);
     await _storage.saveHabits(updated);
@@ -84,6 +123,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
           .toList();
     });
     widget.onHabitsChanged(updated);
+    _showUndoSnackBar('Habit updated', prev, allIndex);
   }
 
   Future<void> _setStatus(
@@ -92,6 +132,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
   ) async {
     final habit = _scheduled[scheduledIndex];
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
     updated[allIndex] = updated[allIndex].setCompletionStatus(_dateKey, status);
     await _storage.saveHabits(updated);
@@ -103,6 +144,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
           .toList();
     });
     widget.onHabitsChanged(updated);
+    _showUndoSnackBar('Habit updated', prev, allIndex);
   }
 
   Future<void> _setSkipReason(int scheduledIndex) async {
@@ -114,6 +156,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     );
     if (result == null) return;
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
     updated[allIndex] = updated[allIndex].setSkipReason(
       widget.day,
@@ -129,6 +172,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
           .toList();
     });
     widget.onHabitsChanged(updated);
+    _showUndoSnackBar('Habit updated', prev, allIndex);
   }
 
   Future<void> _setPartialReason(int scheduledIndex) async {
@@ -140,6 +184,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     );
     if (result == null || !mounted) return;
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
     updated[allIndex] = updated[allIndex].setPartialReason(
       widget.day,
@@ -155,6 +200,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
           .toList();
     });
     widget.onHabitsChanged(updated);
+    _showUndoSnackBar('Habit updated', prev, allIndex);
   }
 
   Future<void> _setQuantitativeProgress(int scheduledIndex) async {
@@ -166,6 +212,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     );
     if (result == null || !mounted) return;
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
     updated[allIndex] = updated[allIndex].setProgress(widget.day, result);
     await _storage.saveHabits(updated);
@@ -177,6 +224,39 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
           .toList();
     });
     widget.onHabitsChanged(updated);
+    _showUndoSnackBar(
+      result == 0 ? 'Progress reset' : 'Habit updated',
+      prev,
+      allIndex,
+    );
+  }
+
+  Future<void> _editNote(int scheduledIndex) async {
+    final habit = _scheduled[scheduledIndex];
+    final result = await showNoteSheet(
+      context: context,
+      habit: habit,
+      date: widget.day,
+      title: 'Note for ${formatSheetDate(widget.day)}',
+    );
+    if (result == null || !mounted) return;
+    final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
+    final prev = _allHabits[allIndex];
+    final updated = List<Habit>.of(_allHabits);
+    updated[allIndex] = updated[allIndex].setNote(
+      widget.day,
+      result.isEmpty ? null : result,
+    );
+    await _storage.saveHabits(updated);
+    if (!mounted) return;
+    setState(() {
+      _allHabits = updated;
+      _scheduled = _allHabits
+          .where((h) => h.isScheduledFor(widget.day))
+          .toList();
+    });
+    widget.onHabitsChanged(updated);
+    _showUndoSnackBar('Note saved', prev, allIndex);
   }
 
   @override
@@ -261,14 +341,17 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
                                 _setQuantitativeProgress(index),
                             onSkipReason: () => _setSkipReason(index),
                             onPartialReason: () => _setPartialReason(index),
+                            onNote: () => _editNote(index),
                           );
                         }
                         if (habit.hasMinimumVersion) {
                           return _MinVersionTile(
                             habit: habit,
+                            day: widget.day,
                             dateKey: _dateKey,
                             onChanged: (s) => _setStatus(index, s),
                             onSkipReason: () => _setSkipReason(index),
+                            onNote: () => _editNote(index),
                           );
                         }
                         return _BinaryHabitTile(
@@ -277,6 +360,7 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
                           dateKey: _dateKey,
                           onToggle: () => _toggle(index),
                           onSkipReason: () => _setSkipReason(index),
+                          onNote: () => _editNote(index),
                         );
                       },
                     ),
@@ -295,6 +379,7 @@ class _QuantitativeHabitTile extends StatelessWidget {
   final VoidCallback onLogProgress;
   final VoidCallback onSkipReason;
   final VoidCallback onPartialReason;
+  final VoidCallback onNote;
 
   const _QuantitativeHabitTile({
     required this.habit,
@@ -303,11 +388,13 @@ class _QuantitativeHabitTile extends StatelessWidget {
     required this.onLogProgress,
     required this.onSkipReason,
     required this.onPartialReason,
+    required this.onNote,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final progress = habit.quantitativeProgress[dateKey] ?? 0;
     final target = habit.targetValue ?? 0;
     final unit = habit.unit ?? '';
@@ -321,6 +408,7 @@ class _QuantitativeHabitTile extends StatelessWidget {
     final partialLabel = partialReason == null
         ? null
         : habitPartialReasonLabel(partialReason);
+    final note = habit.noteFor(day);
 
     final targetStr = target > 0
         ? '${habitProgressLabel(target)}${unit.isNotEmpty ? " $unit" : ""}'
@@ -329,7 +417,7 @@ class _QuantitativeHabitTile extends StatelessWidget {
         ? '${habitProgressLabel(progress)} / $targetStr'
         : habitProgressLabel(progress);
 
-    final subtitle = isComplete
+    final subtitleText = isComplete
         ? '$progressStr · Done'
         : isPartial && partialLabel != null
         ? '$progressStr · Partial · $partialLabel'
@@ -354,7 +442,23 @@ class _QuantitativeHabitTile extends StatelessWidget {
                 : null,
           ),
           title: Text(habit.title),
-          subtitle: subtitle != null ? Text(subtitle) : null,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (subtitleText != null) Text(subtitleText),
+              if (note != null)
+                Text(
+                  '"$note"',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
           trailing: TextButton(
             onPressed: onLogProgress,
             child: Text(isComplete || isPartial ? 'Edit' : 'Log'),
@@ -378,6 +482,14 @@ class _QuantitativeHabitTile extends StatelessWidget {
               label: const Text("Why wasn't the target reached?"),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(left: 56, bottom: 4),
+          child: TextButton.icon(
+            onPressed: onNote,
+            icon: const Icon(Icons.notes),
+            label: Text(note != null ? 'Edit note' : 'Add note'),
+          ),
+        ),
       ],
     );
   }
@@ -389,6 +501,7 @@ class _BinaryHabitTile extends StatelessWidget {
   final String dateKey;
   final VoidCallback onToggle;
   final VoidCallback onSkipReason;
+  final VoidCallback onNote;
 
   const _BinaryHabitTile({
     required this.habit,
@@ -396,19 +509,39 @@ class _BinaryHabitTile extends StatelessWidget {
     required this.dateKey,
     required this.onToggle,
     required this.onSkipReason,
+    required this.onNote,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final reason = habit.skipReasonFor(day);
     final reasonLabel = reason == null ? null : habitSkipReasonLabel(reason);
+    final note = habit.noteFor(day);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CheckboxListTile(
           secondary: Icon(habit.icon),
           title: Text(habit.title),
-          subtitle: reasonLabel == null ? null : Text('Missed · $reasonLabel'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (reasonLabel != null) Text('Missed · $reasonLabel'),
+              if (note != null)
+                Text(
+                  '"$note"',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
           value: habit.isCompletedOn(dateKey),
           onChanged: (_) => onToggle(),
         ),
@@ -421,6 +554,14 @@ class _BinaryHabitTile extends StatelessWidget {
               label: const Text('Why was it missed?'),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(left: 56, bottom: 4),
+          child: TextButton.icon(
+            onPressed: onNote,
+            icon: const Icon(Icons.notes),
+            label: Text(note != null ? 'Edit note' : 'Add note'),
+          ),
+        ),
       ],
     );
   }
@@ -429,29 +570,36 @@ class _BinaryHabitTile extends StatelessWidget {
 /// Three-state list tile for habits that have a minimum version configured.
 class _MinVersionTile extends StatelessWidget {
   final Habit habit;
+  final DateTime day;
   final String dateKey;
   final void Function(HabitCompletionStatus) onChanged;
   final VoidCallback onSkipReason;
+  final VoidCallback onNote;
 
   const _MinVersionTile({
     required this.habit,
+    required this.day,
     required this.dateKey,
     required this.onChanged,
     required this.onSkipReason,
+    required this.onNote,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final status = habit.completionStatusFor(dateKey);
 
     final reason = habit.skipReasons[dateKey];
     final reasonLabel = reason == null ? null : habitSkipReasonLabel(reason);
-    final subtitle = status == HabitCompletionStatus.minimum
-        ? Text('Minimum done', style: TextStyle(color: cs.tertiary))
+    final actualNote = habit.noteFor(day);
+
+    final subtitleText = status == HabitCompletionStatus.minimum
+        ? 'Minimum done'
         : reasonLabel == null
         ? null
-        : Text('Missed · $reasonLabel');
+        : 'Missed · $reasonLabel';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,7 +607,29 @@ class _MinVersionTile extends StatelessWidget {
         ListTile(
           leading: Icon(habit.icon),
           title: Text(habit.title),
-          subtitle: subtitle,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (subtitleText != null)
+                Text(
+                  subtitleText,
+                  style: status == HabitCompletionStatus.minimum
+                      ? TextStyle(color: cs.tertiary)
+                      : null,
+                ),
+              if (actualNote != null)
+                Text(
+                  '"$actualNote"',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -493,6 +663,14 @@ class _MinVersionTile extends StatelessWidget {
               label: const Text('Why was it missed?'),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(left: 56, bottom: 4),
+          child: TextButton.icon(
+            onPressed: onNote,
+            icon: const Icon(Icons.notes),
+            label: Text(actualNote != null ? 'Edit note' : 'Add note'),
+          ),
+        ),
       ],
     );
   }
