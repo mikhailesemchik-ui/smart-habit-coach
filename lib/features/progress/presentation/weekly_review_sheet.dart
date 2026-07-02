@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:smart_habit_coach/features/coach/presentation/adaptive_coach_card.dart';
 
+import '../../coach/data/adaptive_coach_service.dart';
+import '../../coach/domain/adaptive_suggestion.dart';
+import '../../home/domain/habit.dart';
+import '../../home/data/habit_storage.dart';
+import '../../home/presentation/add_habit_sheet.dart';
 import '../data/ai_weekly_review_service.dart';
 import '../domain/ai_weekly_review.dart';
 import '../domain/ai_weekly_review_exception.dart';
@@ -14,13 +20,19 @@ const _defaultFallbackNotice =
 class WeeklyReviewSheet extends StatefulWidget {
   final WeeklyReview localReview;
   final WeeklyReviewMetrics metrics;
+  final List<Habit> habits;
   final AiWeeklyReviewSource? service;
+  final AdaptiveCoachService? coachService;
+  final HabitStorage? habitStorage;
 
   const WeeklyReviewSheet({
     super.key,
     required this.localReview,
     required this.metrics,
+    this.habits = const [],
     this.service,
+    this.coachService,
+    this.habitStorage,
   });
 
   @override
@@ -30,16 +42,80 @@ class WeeklyReviewSheet extends StatefulWidget {
 class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
   late final AiWeeklyReviewSource _service =
       widget.service ?? AiWeeklyReviewService();
+  late final AdaptiveCoachService _coachService =
+      widget.coachService ?? AdaptiveCoachService();
+  late final HabitStorage _habitStorage = widget.habitStorage ?? HabitStorage();
 
   _ReviewStatus _status = _ReviewStatus.loading;
   AiWeeklyReview? _aiReview;
   String _fallbackNotice = _defaultFallbackNotice;
   bool _isFetching = false;
 
+  PendingCoachSuggestion? _coachSuggestion;
+
   @override
   void initState() {
     super.initState();
     _loadAiReview();
+    _loadCoachSuggestion();
+  }
+
+  // Runs independently of the AI review: a coach load/storage failure must
+  // never trigger the AI fallback message, and vice versa.
+  Future<void> _loadCoachSuggestion() async {
+    final result = await _coachService.resolvePendingSuggestion(
+      habits: widget.habits,
+      now: DateTime.now(),
+    );
+    if (!mounted) return;
+    setState(() => _coachSuggestion = result);
+  }
+
+  Future<void> _keepCurrentPlan() async {
+    final current = _coachSuggestion;
+    if (current == null) return;
+    await _coachService.setStatus(
+      current.suggestion,
+      AdaptiveSuggestionStatus.kept,
+    );
+    if (!mounted) return;
+    setState(() => _coachSuggestion = null);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Current plan kept')));
+  }
+
+  Future<void> _adjustManually() async {
+    final current = _coachSuggestion;
+    if (current == null) return;
+    final updatedHabit = await showModalBottomSheet<Habit>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddHabitSheet(initialHabit: current.habit),
+    );
+    if (updatedHabit == null || !mounted) return;
+
+    await _persistHabit(updatedHabit);
+    await _coachService.setStatus(
+      current.suggestion,
+      AdaptiveSuggestionStatus.adjusted,
+    );
+    if (!mounted) return;
+    setState(() => _coachSuggestion = null);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Habit plan updated')));
+  }
+
+  Future<void> _persistHabit(Habit habit) async {
+    final all = await _habitStorage.loadHabits() ?? [];
+    final index = all.indexWhere((h) => h.id == habit.id);
+    if (index >= 0) {
+      all[index] = habit;
+    } else {
+      all.add(habit);
+    }
+    await _habitStorage.saveHabits(all);
   }
 
   Future<void> _loadAiReview() async {
@@ -136,6 +212,15 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.outline,
             ),
+          ),
+        ],
+        if (_coachSuggestion != null) ...[
+          const SizedBox(height: 16),
+          AdaptiveCoachCard(
+            suggestion: _coachSuggestion!.suggestion,
+            habit: _coachSuggestion!.habit,
+            onKeep: _keepCurrentPlan,
+            onAdjust: _adjustManually,
           ),
         ],
         const SizedBox(height: 24),

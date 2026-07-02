@@ -98,8 +98,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final metrics = calculateWeeklyReviewMetrics(activeHabits, now);
     await showModalBottomSheet<void>(
       context: context,
-      builder: (_) =>
-          WeeklyReviewSheet(localReview: localReview, metrics: metrics),
+      builder: (_) => WeeklyReviewSheet(
+        localReview: localReview,
+        metrics: metrics,
+        habits: _habits,
+      ),
     );
   }
 

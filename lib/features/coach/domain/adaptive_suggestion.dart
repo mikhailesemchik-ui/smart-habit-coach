@@ -88,6 +88,7 @@ class AdaptiveHabitSuggestion {
 
   AdaptiveHabitSuggestion copyWith({
     AdaptiveSuggestionStatus? status,
+    String? evidenceCode,
     double? proposedTargetValue,
     String? proposedTime,
     List<int>? proposedWeekdays,
@@ -100,7 +101,7 @@ class AdaptiveHabitSuggestion {
       createdAt: createdAt,
       analysisStart: analysisStart,
       analysisEnd: analysisEnd,
-      evidenceCode: evidenceCode,
+      evidenceCode: evidenceCode ?? this.evidenceCode,
       evidence: evidence,
       proposedTargetValue: proposedTargetValue ?? this.proposedTargetValue,
       proposedTime: proposedTime ?? this.proposedTime,

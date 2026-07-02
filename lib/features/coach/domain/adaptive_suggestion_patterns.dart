@@ -224,6 +224,7 @@ Candidate? quantitativeTargetCandidate(
       evidence: {
         'targetTooDifficultCount': targetTooDifficultCount,
         'partialProgressCount': partialProgressCount,
+        'reachedCount': reachedCount,
         'targetCompletionRate': targetCompletionRate,
         'consistencyRate': consistencyRate,
       },
