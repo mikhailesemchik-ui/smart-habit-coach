@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../home/domain/habit.dart';
@@ -28,58 +29,7 @@ class AiWeeklyReviewService implements AiWeeklyReviewSource {
       response = await _client.functions
           .invoke(
             'generate-weekly-review',
-            body: {
-              'completionRate': metrics.completionRate,
-              'currentStreak': metrics.currentStreak,
-              'bestStreak': metrics.bestStreak,
-              'strongestDay': metrics.strongestDay,
-              'weakestDay': metrics.weakestDay,
-              'completedCount': metrics.completedCount,
-              'minimumCompletedCount': metrics.minimumCompletedCount,
-              'totalPossibleCount': metrics.totalPossibleCount,
-              'skipReasons': {
-                'noTime': metrics.skipReasonCounts[HabitSkipReason.noTime] ?? 0,
-                'forgot': metrics.skipReasonCounts[HabitSkipReason.forgot] ?? 0,
-                'tooTired':
-                    metrics.skipReasonCounts[HabitSkipReason.tooTired] ?? 0,
-                'tooDifficult':
-                    metrics.skipReasonCounts[HabitSkipReason.tooDifficult] ?? 0,
-                'other': metrics.skipReasonCounts[HabitSkipReason.other] ?? 0,
-              },
-              'missedWithoutReason': metrics.missedWithoutReason,
-              'partialReasons': {
-                'noTime':
-                    metrics.partialReasonCounts[HabitPartialReason.noTime] ?? 0,
-                'tooTired':
-                    metrics.partialReasonCounts[HabitPartialReason.tooTired] ??
-                    0,
-                'targetTooDifficult':
-                    metrics.partialReasonCounts[HabitPartialReason
-                        .targetTooDifficult] ??
-                    0,
-                'forgotToContinue':
-                    metrics.partialReasonCounts[HabitPartialReason
-                        .forgotToContinue] ??
-                    0,
-                'other':
-                    metrics.partialReasonCounts[HabitPartialReason.other] ?? 0,
-              },
-              'partialWithoutReason': metrics.partialWithoutReason,
-              'quantitativeHabits': metrics.quantitativeHabits
-                  .map(
-                    (s) => {
-                      'title': s.title,
-                      'unit': s.unit,
-                      'target': s.target,
-                      'scheduledOccurrences': s.scheduledOccurrences,
-                      'targetReached': s.targetReached,
-                      'partialOccurrences': s.partialOccurrences,
-                      'totalLogged': s.totalLogged,
-                      'averageLogged': s.averageLogged,
-                    },
-                  )
-                  .toList(),
-            },
+            body: buildAiWeeklyReviewPayload(metrics),
           )
           .timeout(const Duration(seconds: 20));
     } on FunctionException catch (e) {
@@ -94,8 +44,114 @@ class AiWeeklyReviewService implements AiWeeklyReviewSource {
       throw const AiWeeklyReviewException(_requestFailedMessage);
     }
 
-    return parseAiWeeklyReviewResponse(response.data);
+    try {
+      return parseAiWeeklyReviewResponse(response.data, metrics: metrics);
+    } on AiWeeklyReviewException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          'Weekly Review AI response rejected: ${e.diagnosticSummary}',
+        );
+      }
+      rethrow;
+    }
   }
+}
+
+Map<String, Object?> buildAiWeeklyReviewPayload(WeeklyReviewMetrics metrics) {
+  return {
+    'completionRate': metrics.completionRate,
+    'currentStreak': metrics.currentStreak,
+    'bestStreak': metrics.bestStreak,
+    'strongestDay': metrics.strongestDay,
+    'weakestDay': metrics.weakestDay,
+    'completedCount': metrics.completedCount,
+    'minimumCompletedCount': metrics.minimumCompletedCount,
+    'totalPossibleCount': metrics.totalPossibleCount,
+    'skipReasons': _skipReasonPayload(metrics.skipReasonCounts),
+    'missedWithoutReason': metrics.missedWithoutReason,
+    'partialReasons': _partialReasonPayload(metrics.partialReasonCounts),
+    'partialWithoutReason': metrics.partialWithoutReason,
+    'habitSummaries': metrics.habitSummaries.map(_habitSummaryPayload).toList(),
+    'eligiblePatterns': eligibleWeeklyReviewPatterns(
+      metrics,
+    ).map(_eligiblePatternPayload).toList(),
+    'focusSignals': _focusSignalsPayload(weeklyReviewFocusSignals(metrics)),
+  };
+}
+
+Map<String, int> _skipReasonPayload(Map<HabitSkipReason, int> counts) {
+  return {
+    'noTime': counts[HabitSkipReason.noTime] ?? 0,
+    'forgot': counts[HabitSkipReason.forgot] ?? 0,
+    'tooTired': counts[HabitSkipReason.tooTired] ?? 0,
+    'tooDifficult': counts[HabitSkipReason.tooDifficult] ?? 0,
+    'other': counts[HabitSkipReason.other] ?? 0,
+  };
+}
+
+Map<String, int> _partialReasonPayload(Map<HabitPartialReason, int> counts) {
+  return {
+    'noTime': counts[HabitPartialReason.noTime] ?? 0,
+    'tooTired': counts[HabitPartialReason.tooTired] ?? 0,
+    'targetTooDifficult': counts[HabitPartialReason.targetTooDifficult] ?? 0,
+    'forgotToContinue': counts[HabitPartialReason.forgotToContinue] ?? 0,
+    'other': counts[HabitPartialReason.other] ?? 0,
+  };
+}
+
+Map<String, Object?> _habitSummaryPayload(WeeklyHabitSummary summary) {
+  return {
+    'habitId': summary.habitId,
+    'title': summary.title,
+    'trackingType': summary.trackingType.name,
+    'scheduledOccurrences': summary.scheduledOccurrences,
+    'fullCompletions': summary.fullCompletions,
+    'minimumCompletions': summary.minimumCompletions,
+    'partialOccurrences': summary.partialOccurrences,
+    'missedOccurrences': summary.missedOccurrences,
+    'consistencyOccurrences': summary.consistencyOccurrences,
+    'completionRate': summary.completionRate,
+    'consistencyRate': summary.consistencyRate,
+    'currentStreak': summary.currentStreak,
+    'bestStreak': summary.bestStreak,
+    'targetValue': summary.targetValue,
+    'unit': summary.unit,
+    'totalLogged': summary.totalLogged,
+    'averageProgress': summary.averageProgress,
+    'averageLoggedAmount': summary.averageLoggedAmount,
+    'skipReasons': _skipReasonPayload(summary.skipReasons),
+    'partialReasons': _partialReasonPayload(summary.partialReasons),
+    'missedWithoutReason': summary.missedWithoutReason,
+    'partialWithoutReason': summary.partialWithoutReason,
+  };
+}
+
+Map<String, Object?> _eligiblePatternPayload(WeeklyReviewPattern pattern) {
+  return {
+    'type': pattern.type,
+    if (pattern.habitId != null) 'habitId': pattern.habitId,
+    if (pattern.habitTitle != null) 'habitTitle': pattern.habitTitle,
+    if (pattern.reason != null) 'reason': pattern.reason,
+    'count': pattern.count,
+  };
+}
+
+Map<String, Object?> _focusSignalsPayload(WeeklyReviewFocusSignals signals) {
+  return {
+    'repeatedForgot': signals.repeatedForgot,
+    'repeatedForgotToContinue': signals.repeatedForgotToContinue,
+    'repeatedNoTime': signals.repeatedNoTime,
+    'repeatedTooTired': signals.repeatedTooTired,
+    'repeatedDifficulty': signals.repeatedDifficulty,
+    'repeatedPartialProgress': signals.repeatedPartialProgress,
+    'repeatedMinimumUse': signals.repeatedMinimumUse,
+    'highConsistencyLowFullCompletion':
+        signals.highConsistencyLowFullCompletion,
+    'strongWeek': signals.strongWeek,
+    'noScheduledData': signals.noScheduledData,
+    if (signals.primaryHabitTitle != null)
+      'primaryHabitTitle': signals.primaryHabitTitle,
+  };
 }
 
 bool isAiWeeklyReviewQuotaExceeded(int status, Object? data) {

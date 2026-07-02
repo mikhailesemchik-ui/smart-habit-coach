@@ -63,11 +63,19 @@ class _RetryingFakeSource implements AiWeeklyReviewSource {
 
 void main() {
   const localReview = WeeklyReview(
-    summary: 'You made some progress this week (45% completed).',
+    summary: 'You completed 9 of 20 scheduled habits.',
     strongestDay: 'Wednesday',
     weakestDay: 'Sunday',
     recommendation:
-        'Try to stay consistent on Sunday to build momentum next week.',
+        'Pick one scheduled habit and plan one specific time for it next week.',
+    whatWentWell: [
+      'You completed 9 of 20 scheduled habits.',
+      'Your strongest habit this week was Reading.',
+    ],
+    partialProgress: ['You used the minimum version of Reading on 2 days.'],
+    patterns: ['No repeated patterns were recorded this week.'],
+    focusNextWeek:
+        'Pick one scheduled habit and plan one specific time for it next week.',
   );
   const metrics = WeeklyReviewMetrics(
     completionRate: 0.45,
@@ -76,25 +84,28 @@ void main() {
     strongestDay: 'Wednesday',
     weakestDay: 'Sunday',
     completedCount: 9,
-    minimumCompletedCount: 0,
+    minimumCompletedCount: 2,
     totalPossibleCount: 20,
   );
   const aiReview = AiWeeklyReview(
-    summary: 'You completed 45% of your habits this week.',
-    strongestInsight: 'Wednesday was your most consistent day.',
-    weakestInsight: 'Sunday could use more attention next week.',
-    recommendation: 'Plan a lighter Sunday routine to keep your streak alive.',
+    summary: 'You completed reading on 5 of 7 scheduled days.',
+    recommendation: 'Choose one protected 20-minute reading slot.',
+    whatWentWell: ['You completed reading on 5 of 7 scheduled days.'],
+    partialProgress: ['You used the minimum version twice.'],
+    patterns: ['Limited time was recorded on 3 days.'],
+    focusNextWeek: 'Choose one protected 20-minute reading slot.',
   );
 
   Future<void> pumpSheet(
     WidgetTester tester,
-    AiWeeklyReviewSource service,
-  ) async {
+    AiWeeklyReviewSource service, {
+    WeeklyReview review = localReview,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: WeeklyReviewSheet(
-            localReview: localReview,
+            localReview: review,
             metrics: metrics,
             service: service,
           ),
@@ -112,28 +123,28 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Recommendation'), findsNothing);
+    expect(find.text('Focus for next week'), findsNothing);
 
     delay.complete();
     await tester.pumpAndSettle();
   });
 
-  testWidgets(
-    'Displays the AI review on success while keeping the local strongest/weakest day',
-    (tester) async {
-      final service = _FakeAiWeeklyReviewSource.success(aiReview);
-      await pumpSheet(tester, service);
-      await tester.pumpAndSettle();
+  testWidgets('Displays the AI review using all four sections', (tester) async {
+    final service = _FakeAiWeeklyReviewSource.success(aiReview);
+    await pumpSheet(tester, service);
+    await tester.pumpAndSettle();
 
-      expect(find.text(aiReview.summary), findsOneWidget);
-      expect(find.text('Wednesday'), findsOneWidget);
-      expect(find.text(aiReview.strongestInsight), findsOneWidget);
-      expect(find.text('Sunday'), findsOneWidget);
-      expect(find.text(aiReview.weakestInsight), findsOneWidget);
-      expect(find.text(aiReview.recommendation), findsOneWidget);
-      expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
-    },
-  );
+    expect(find.text('Weekly Review'), findsOneWidget);
+    expect(find.text('What went well'), findsOneWidget);
+    expect(find.text('Partial progress'), findsOneWidget);
+    expect(find.text('Patterns noticed'), findsOneWidget);
+    expect(find.text('Focus for next week'), findsOneWidget);
+    expect(find.text(aiReview.whatWentWell.single), findsOneWidget);
+    expect(find.text(aiReview.partialProgress.single), findsOneWidget);
+    expect(find.text(aiReview.patterns.single), findsOneWidget);
+    expect(find.text(aiReview.focusNextWeek), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
+  });
 
   testWidgets(
     'Falls back to the local review with a non-technical notice when the AI request fails',
@@ -144,10 +155,12 @@ void main() {
       await pumpSheet(tester, service);
       await tester.pumpAndSettle();
 
-      expect(find.text(localReview.summary), findsOneWidget);
-      expect(find.text(localReview.recommendation), findsOneWidget);
+      expect(find.text(localReview.whatWentWell.first), findsOneWidget);
+      expect(find.text(localReview.partialProgress.first), findsOneWidget);
+      expect(find.text(localReview.patterns.first), findsOneWidget);
+      expect(find.text(localReview.focusNextWeek), findsOneWidget);
       expect(
-        find.textContaining("Showing your local weekly review"),
+        find.textContaining('Showing your local weekly review'),
         findsOneWidget,
       );
       expect(find.text('Network unavailable.'), findsNothing);
@@ -169,8 +182,8 @@ void main() {
       await pumpSheet(tester, service);
       await tester.pumpAndSettle();
 
-      expect(find.text(localReview.summary), findsOneWidget);
-      expect(find.text(localReview.recommendation), findsOneWidget);
+      expect(find.text(localReview.whatWentWell.first), findsOneWidget);
+      expect(find.text(localReview.focusNextWeek), findsOneWidget);
       expect(find.text(aiWeeklyReviewQuotaMessage), findsOneWidget);
       expect(find.textContaining('Network unavailable'), findsNothing);
       expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
@@ -195,7 +208,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Retry'));
     await tester.pumpAndSettle();
 
-    expect(find.text(aiReview.summary), findsOneWidget);
+    expect(find.text(aiReview.whatWentWell.single), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
   });
 
@@ -217,5 +230,41 @@ void main() {
 
     secondCallDelay.complete();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('Renders long section text without overflow on a compact screen', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(360, 480);
+    tester.view.devicePixelRatio = 1.0;
+
+    const longReview = WeeklyReview(
+      summary: 'A long local summary.',
+      strongestDay: null,
+      weakestDay: null,
+      recommendation:
+          'Choose one specific time for the habit that needs the most attention next week.',
+      whatWentWell: [
+        'You completed a scheduled habit with a deliberately long title that should wrap safely inside the weekly review sheet.',
+      ],
+      partialProgress: [
+        'You made partial progress on a quantitative habit with a long unit label and the text should wrap without layout overflow.',
+      ],
+      patterns: [
+        'No repeated patterns were recorded this week, even with a long explanatory sentence that needs wrapping.',
+      ],
+      focusNextWeek:
+          'Choose one specific time for the habit that needs the most attention next week.',
+    );
+    final service = _FakeAiWeeklyReviewSource.failure(
+      const AiWeeklyReviewException('Network unavailable.'),
+    );
+
+    await pumpSheet(tester, service, review: longReview);
+    await tester.pumpAndSettle();
+
+    expect(find.text('What went well'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -174,12 +174,14 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'View weekly review'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Recommendation'), findsOneWidget);
+    expect(find.text('Focus for next week'), findsOneWidget);
 
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Close'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Close'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Recommendation'), findsNothing);
+    expect(find.text('Focus for next week'), findsNothing);
   });
 
   testWidgets(

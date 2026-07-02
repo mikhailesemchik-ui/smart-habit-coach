@@ -3,13 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/progress/domain/weekly_review.dart';
 
-Habit _habit(String id, Set<String> completedDates) {
+Habit _habit(
+  String id,
+  Set<String> completedDates, {
+  String? title,
+  Set<String> minimumCompletedDates = const {},
+  String? minimumVersion,
+}) {
   return Habit(
     id: id,
-    title: 'Habit $id',
+    title: title ?? 'Habit $id',
     scheduledTime: '08:00 AM',
     icon: Icons.local_drink_outlined,
     completedDates: completedDates,
+    minimumCompletedDates: minimumCompletedDates,
+    minimumVersion: minimumVersion,
   );
 }
 
@@ -17,34 +25,39 @@ void main() {
   // Friday, June 19, 2026.
   final reference = DateTime(2026, 6, 19);
 
-  test('no habits returns a prompt to create one, with no day breakdown', () {
+  test('no habits returns the empty weekly review sections', () {
     final review = generateWeeklyReview([], reference);
 
-    expect(review.summary, 'Add a habit to start your weekly review.');
+    expect(
+      review.summary,
+      'No scheduled habit data was available for this week.',
+    );
     expect(review.strongestDay, isNull);
     expect(review.weakestDay, isNull);
+    expect(review.whatWentWell, hasLength(1));
+    expect(review.partialProgress, isEmpty);
+    expect(review.patterns, isEmpty);
     expect(
       review.recommendation,
-      'Create your first habit to start tracking weekly progress.',
+      'Choose one realistic habit to track next week.',
     );
   });
 
-  test('no completion data returns a no-progress summary', () {
+  test('no completion data returns factual sections without invented causes', () {
     final habits = [_habit('1', {})];
 
     final review = generateWeeklyReview(habits, reference);
 
-    expect(review.summary, "You didn't log any progress this week.");
-    expect(review.strongestDay, isNull);
-    expect(review.weakestDay, isNull);
     expect(
-      review.recommendation,
-      'Complete one habit tomorrow to start a new streak.',
+      review.whatWentWell.single,
+      'There were no full completions this week, but the review can still help identify a manageable next step.',
     );
+    expect(review.partialProgress, isEmpty);
+    expect(review.patterns, isEmpty);
+    expect(review.focusNextWeek, "Try completing 'Habit 1' once next week.");
   });
 
   test('partial progress identifies the strongest and weakest day', () {
-    // Two habits; only completed together on Wednesday (06-17).
     final habits = [
       _habit('1', {'2026-06-17'}),
       _habit('2', {'2026-06-17'}),
@@ -52,13 +65,16 @@ void main() {
 
     final review = generateWeeklyReview(habits, reference);
 
-    expect(review.summary, contains('made some progress'));
+    expect(review.summary, "You completed 'Habit 1' on 1 of 7 scheduled days.");
     expect(review.strongestDay, 'Wednesday');
     expect(review.weakestDay, isNotNull);
-    expect(review.recommendation, contains(review.weakestDay!));
+    expect(
+      review.focusNextWeek,
+      "Aim for one additional full completion of 'Habit 1' next week.",
+    );
   });
 
-  test('strong progress (>=70%) returns an encouraging summary', () {
+  test('strong progress recommends keeping the current routine', () {
     final habits = [
       _habit('1', {
         '2026-06-13',
@@ -73,12 +89,31 @@ void main() {
 
     final review = generateWeeklyReview(habits, reference);
 
-    expect(review.summary, contains('Great week'));
-    expect(review.summary, contains('100%'));
+    expect(review.summary, "You completed 'Habit 1' on 7 of 7 scheduled days.");
     expect(review.strongestDay, isNotNull);
     expect(
       review.recommendation,
-      'Keep up the momentum and consider adding a new habit next week.',
+      "Repeat the same schedule for 'Habit 1' next week.",
+    );
+  });
+
+  test('minimum version is described separately from partial progress', () {
+    final review = generateWeeklyReview([
+      _habit(
+        'reading',
+        {},
+        title: 'Reading',
+        minimumVersion: 'Read one page',
+        minimumCompletedDates: {'2026-06-18', '2026-06-19'},
+      ),
+    ], reference);
+
+    expect(review.partialProgress, [
+      "You used the minimum version of 'Reading' on 2 days.",
+    ]);
+    expect(
+      review.partialProgress.join(' '),
+      isNot(contains('partial completion')),
     );
   });
 }

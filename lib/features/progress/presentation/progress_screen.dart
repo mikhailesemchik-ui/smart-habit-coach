@@ -166,7 +166,7 @@ class _WeeklyReviewCard extends StatelessWidget {
             Text('Weekly review', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'See your strongest and weakest day, plus a recommendation for next week.',
+              'See what went well, partial progress, patterns, and one focus for next week.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),

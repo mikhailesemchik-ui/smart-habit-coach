@@ -9,7 +9,7 @@ import '../domain/weekly_review.dart';
 enum _ReviewStatus { loading, success, error }
 
 const _defaultFallbackNotice =
-    "Showing your local weekly review — AI insights aren't available right now.";
+    "Showing your local weekly review - AI insights aren't available right now.";
 
 class WeeklyReviewSheet extends StatefulWidget {
   final WeeklyReview localReview;
@@ -87,7 +87,7 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Weekly review', style: theme.textTheme.titleLarge),
+            Text('Weekly Review', style: theme.textTheme.titleLarge),
             const SizedBox(height: 16),
             _buildBody(theme),
           ],
@@ -106,41 +106,29 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
 
     final aiReview = _aiReview;
     final isSuccess = _status == _ReviewStatus.success && aiReview != null;
-    final metrics = widget.metrics;
+    final whatWentWell = isSuccess
+        ? aiReview.whatWentWell
+        : widget.localReview.whatWentWell;
+    final partialProgress = isSuccess
+        ? aiReview.partialProgress
+        : widget.localReview.partialProgress;
+    final patterns = isSuccess
+        ? aiReview.patterns
+        : widget.localReview.patterns;
+    final focusNextWeek = isSuccess
+        ? aiReview.focusNextWeek
+        : widget.localReview.focusNextWeek;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          isSuccess ? aiReview.summary : widget.localReview.summary,
-          style: theme.textTheme.bodyLarge,
-        ),
-        if (metrics.strongestDay != null) ...[
-          const SizedBox(height: 16),
-          Text('Strongest day', style: theme.textTheme.titleSmall),
-          Text(metrics.strongestDay!, style: theme.textTheme.bodyLarge),
-          if (isSuccess) ...[
-            const SizedBox(height: 4),
-            Text(aiReview.strongestInsight, style: theme.textTheme.bodyMedium),
-          ],
-        ],
-        if (metrics.weakestDay != null) ...[
-          const SizedBox(height: 16),
-          Text('Weakest day', style: theme.textTheme.titleSmall),
-          Text(metrics.weakestDay!, style: theme.textTheme.bodyLarge),
-          if (isSuccess) ...[
-            const SizedBox(height: 4),
-            Text(aiReview.weakestInsight, style: theme.textTheme.bodyMedium),
-          ],
-        ],
+        _ReviewSection(title: 'What went well', items: whatWentWell),
         const SizedBox(height: 16),
-        Text('Recommendation', style: theme.textTheme.titleSmall),
-        Text(
-          isSuccess
-              ? aiReview.recommendation
-              : widget.localReview.recommendation,
-          style: theme.textTheme.bodyLarge,
-        ),
+        _ReviewSection(title: 'Partial progress', items: partialProgress),
+        const SizedBox(height: 16),
+        _ReviewSection(title: 'Patterns noticed', items: patterns),
+        const SizedBox(height: 16),
+        _ReviewSection(title: 'Focus for next week', items: [focusNextWeek]),
         if (!isSuccess) ...[
           const SizedBox(height: 16),
           Text(
@@ -163,6 +151,31 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _ReviewSection extends StatelessWidget {
+  final String title;
+  final List<String> items;
+
+  const _ReviewSection({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final visibleItems = items.isEmpty ? const ['No data available.'] : items;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 6),
+        for (final item in visibleItems) ...[
+          Text(item, style: theme.textTheme.bodyMedium),
+          if (item != visibleItems.last) const SizedBox(height: 6),
+        ],
       ],
     );
   }
