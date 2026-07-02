@@ -92,12 +92,20 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'View calendar'));
+    final viewCalendarText = find.text('View calendar');
+    expect(viewCalendarText, findsOneWidget);
+
+    await tester.ensureVisible(viewCalendarText);
+    await tester.pump();
+    await tester.tap(viewCalendarText);
     await tester.pumpAndSettle();
 
-    // Navigation buttons are the clearest indicator the sheet opened
+    // chevron_left is unique to the opened calendar sheet's month nav.
+    // chevron_right is not used here because the Progress screen's Coach
+    // Insights entry (still mounted beneath the modal sheet) also has one,
+    // so asserting it globally would count two identical icons.
     expect(find.byIcon(Icons.chevron_left), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    expect(find.byType(HabitHistoryCalendarSheet), findsOneWidget);
   });
 
   // ── Widget tests: HabitHistoryCalendarSheet ────────────────────────────────

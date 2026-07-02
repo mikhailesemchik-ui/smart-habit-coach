@@ -143,6 +143,7 @@ Candidate? tooDifficultCandidate(
     suggestion: AdaptiveHabitSuggestion(
       id: suggestionId(habit.id, AdaptiveSuggestionType.addMinimumVersion, now),
       habitId: habit.id,
+      habitTitleSnapshot: habit.title,
       type: AdaptiveSuggestionType.addMinimumVersion,
       createdAt: now,
       analysisStart: start,
@@ -216,6 +217,7 @@ Candidate? quantitativeTargetCandidate(
         now,
       ),
       habitId: habit.id,
+      habitTitleSnapshot: habit.title,
       type: AdaptiveSuggestionType.reduceQuantitativeTarget,
       createdAt: now,
       analysisStart: start,
@@ -274,6 +276,7 @@ Candidate? noTimeCandidate(
     suggestion: AdaptiveHabitSuggestion(
       id: suggestionId(habit.id, type, now),
       habitId: habit.id,
+      habitTitleSnapshot: habit.title,
       type: type,
       createdAt: now,
       analysisStart: start,
@@ -309,6 +312,7 @@ Candidate? tooTiredCandidate(
         now,
       ),
       habitId: habit.id,
+      habitTitleSnapshot: habit.title,
       type: AdaptiveSuggestionType.changeScheduledTime,
       createdAt: now,
       analysisStart: start,
@@ -381,6 +385,7 @@ Candidate? frequencyMismatchCandidate(
     suggestion: AdaptiveHabitSuggestion(
       id: suggestionId(habit.id, AdaptiveSuggestionType.reduceFrequency, now),
       habitId: habit.id,
+      habitTitleSnapshot: habit.title,
       type: AdaptiveSuggestionType.reduceFrequency,
       createdAt: now,
       analysisStart: start,

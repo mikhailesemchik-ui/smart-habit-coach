@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../coach/presentation/coach_insights_screen.dart';
 import '../../home/data/habit_storage.dart';
 import '../../home/domain/habit.dart';
 import '../../home/domain/sample_habits.dart';
@@ -110,6 +111,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
+  void _openCoachInsights() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const CoachInsightsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -149,6 +156,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ),
           const SizedBox(height: 16),
           _WeeklyReviewCard(onOpenReview: _openWeeklyReview),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.history),
+            title: const Text('Coach Insights'),
+            subtitle: const Text(
+              'Your habit plan adjustments and recent coaching history',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _openCoachInsights,
+          ),
         ],
       ),
     );

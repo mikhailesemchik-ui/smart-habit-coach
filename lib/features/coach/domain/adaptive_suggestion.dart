@@ -83,6 +83,12 @@ class AdaptiveHabitSuggestion {
   /// was taken at all.
   final String? originalUnit;
 
+  /// Snapshot of the habit's title at the moment this suggestion was
+  /// created. Lets Coach Insights show a readable habit name even after
+  /// the habit is renamed or deleted. Suggestions created before this
+  /// field existed never have it set.
+  final String? habitTitleSnapshot;
+
   const AdaptiveHabitSuggestion({
     required this.id,
     required this.habitId,
@@ -98,6 +104,7 @@ class AdaptiveHabitSuggestion {
     this.proposedWeekdays,
     this.originalTargetValue,
     this.originalUnit,
+    this.habitTitleSnapshot,
   });
 
   AdaptiveHabitSuggestion copyWith({
@@ -122,6 +129,7 @@ class AdaptiveHabitSuggestion {
       proposedWeekdays: proposedWeekdays ?? this.proposedWeekdays,
       originalTargetValue: originalTargetValue,
       originalUnit: originalUnit,
+      habitTitleSnapshot: habitTitleSnapshot,
     );
   }
 
@@ -143,6 +151,7 @@ class AdaptiveHabitSuggestion {
       if (originalTargetValue != null)
         'originalTargetValue': originalTargetValue,
       if (originalUnit != null) 'originalUnit': originalUnit,
+      if (habitTitleSnapshot != null) 'habitTitleSnapshot': habitTitleSnapshot,
     };
   }
 
@@ -199,6 +208,9 @@ class AdaptiveHabitSuggestion {
           ? originalTargetValue.toDouble()
           : null,
       originalUnit: originalUnit is String ? originalUnit : null,
+      habitTitleSnapshot: json['habitTitleSnapshot'] is String
+          ? json['habitTitleSnapshot'] as String
+          : null,
     );
   }
 }
