@@ -227,8 +227,19 @@ Candidate? quantitativeTargetCandidate(
         'reachedCount': reachedCount,
         'targetCompletionRate': targetCompletionRate,
         'consistencyRate': consistencyRate,
+        // Numeric snapshot duplicated here for evidence completeness; the
+        // authoritative copy used for apply-eligibility checks is the
+        // dedicated originalTargetValue/originalUnit fields below, since
+        // evidence values are constrained to num and can't hold the unit.
+        'originalTargetValue': target,
+        // Marks that a unit snapshot was captured at creation time (the
+        // unit itself may legitimately be null for a unit-less habit).
+        // Suggestions predating Phase 3 never have this key.
+        'hasUnitSnapshot': 1,
       },
       proposedTargetValue: proposedTarget,
+      originalTargetValue: target,
+      originalUnit: habit.unit,
     ),
     rank: evidenceRank[evidenceCode]!,
     occurrenceCount: explicitReason

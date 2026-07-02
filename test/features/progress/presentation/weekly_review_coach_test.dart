@@ -46,6 +46,33 @@ Habit _habitWithEvidence() {
   );
 }
 
+Habit _quantitativeHabitWithEvidence() {
+  final progressDays = _spread(10, span: 25);
+  final reasonDays = _spread(3, span: 25);
+  final reasonKeys = reasonDays.map(dateKey).toSet();
+  final progressKeys = progressDays.map(dateKey).toSet();
+  final filler = _lastDays(35)
+      .map(dateKey)
+      .where((k) => !reasonKeys.contains(k) && !progressKeys.contains(k))
+      .toSet();
+  return Habit(
+    id: 'h1',
+    title: 'Water',
+    scheduledTime: '08:00 AM',
+    icon: Icons.local_drink,
+    weekdays: const [1, 2, 3, 4, 5, 6, 7],
+    trackingType: HabitTrackingType.quantitative,
+    targetValue: 10,
+    unit: 'L',
+    completedDates: filler,
+    quantitativeProgress: {for (final d in progressDays) dateKey(d): 5.0},
+    partialReasons: {
+      for (final d in reasonDays)
+        dateKey(d): HabitPartialReason.targetTooDifficult,
+    },
+  );
+}
+
 const _metrics = WeeklyReviewMetrics(
   completionRate: 0.5,
   currentStreak: 1,
@@ -77,6 +104,7 @@ Widget _harness({
   AiWeeklyReviewSource? service,
   AdaptiveCoachService? coachService,
   HabitStorage? habitStorage,
+  ValueChanged<Habit>? onHabitUpdated,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -87,6 +115,7 @@ Widget _harness({
         service: service ?? const _FakeAiSource.success(AiWeeklyReview()),
         coachService: coachService,
         habitStorage: habitStorage,
+        onHabitUpdated: onHabitUpdated,
       ),
     ),
   );
@@ -199,6 +228,126 @@ void main() {
 
       final stored = await AdaptiveSuggestionStorage().loadSuggestions();
       expect(stored.single.status, AdaptiveSuggestionStatus.adjusted);
+    },
+  );
+
+  testWidgets(
+    'Apply suggestion is offered for reduceQuantitativeTarget and updates the target directly',
+    (tester) async {
+      final habit = _quantitativeHabitWithEvidence();
+      final habitStorage = HabitStorage();
+      await habitStorage.saveHabits([habit]);
+      Habit? reportedHabit;
+
+      await tester.pumpWidget(
+        _harness(
+          habits: [habit],
+          habitStorage: habitStorage,
+          onHabitUpdated: (h) => reportedHabit = h,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final applyButton = find.text('Apply suggestion');
+      await tester.ensureVisible(applyButton);
+      await tester.pump();
+      await tester.tap(applyButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(AdaptiveCoachCard), findsNothing);
+      expect(find.text('Suggested target applied'), findsOneWidget);
+
+      final stored = await AdaptiveSuggestionStorage().loadSuggestions();
+      expect(stored.single.status, AdaptiveSuggestionStatus.applied);
+
+      final habits = await habitStorage.loadHabits();
+      expect(habits!.single.targetValue, 5.0);
+      // Unrelated fields survive untouched.
+      expect(habits.single.quantitativeProgress, habit.quantitativeProgress);
+      expect(habits.single.unit, habit.unit);
+
+      // ProgressScreen-style state propagation happens immediately.
+      expect(reportedHabit, isNotNull);
+      expect(reportedHabit!.targetValue, 5.0);
+    },
+  );
+
+  testWidgets(
+    'double-tapping Apply suggestion causes only one apply operation',
+    (tester) async {
+      final habit = _quantitativeHabitWithEvidence();
+      final habitStorage = HabitStorage();
+      await habitStorage.saveHabits([habit]);
+      var updateCount = 0;
+
+      await tester.pumpWidget(
+        _harness(
+          habits: [habit],
+          habitStorage: habitStorage,
+          onHabitUpdated: (_) => updateCount++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final applyButton = find.text('Apply suggestion');
+      await tester.ensureVisible(applyButton);
+      await tester.pump();
+      // Two rapid taps before the first async apply completes.
+      await tester.tap(applyButton);
+      await tester.tap(applyButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(updateCount, 1);
+      final stored = await AdaptiveSuggestionStorage().loadSuggestions();
+      expect(stored, hasLength(1));
+      expect(stored.single.status, AdaptiveSuggestionStatus.applied);
+    },
+  );
+
+  testWidgets(
+    'a successful Adjust manually edit also propagates the habit immediately',
+    (tester) async {
+      final habit = _habitWithEvidence();
+      final habitStorage = HabitStorage();
+      await habitStorage.saveHabits([habit]);
+      Habit? reportedHabit;
+
+      await tester.pumpWidget(
+        _harness(
+          habits: [habit],
+          habitStorage: habitStorage,
+          onHabitUpdated: (h) => reportedHabit = h,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Adjust manually'));
+      await tester.pumpAndSettle();
+
+      final saveButton = find.widgetWithText(FilledButton, 'Save');
+      await tester.ensureVisible(saveButton);
+      await tester.pump();
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(reportedHabit, isNotNull);
+      expect(reportedHabit!.id, habit.id);
+    },
+  );
+
+  testWidgets(
+    'Apply suggestion is not offered for suggestion types other than reduceQuantitativeTarget',
+    (tester) async {
+      final habit = _habitWithEvidence();
+      await tester.pumpWidget(_harness(habits: [habit]));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdaptiveCoachCard), findsOneWidget);
+      expect(find.text('Apply suggestion'), findsNothing);
+      expect(find.text('Keep current plan'), findsOneWidget);
+      expect(find.text('Adjust manually'), findsOneWidget);
     },
   );
 

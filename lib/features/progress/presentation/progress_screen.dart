@@ -102,6 +102,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
         localReview: localReview,
         metrics: metrics,
         habits: _habits,
+        onHabitUpdated: (updated) {
+          if (!mounted) return;
+          _mergeActiveHabits([updated]);
+        },
       ),
     );
   }

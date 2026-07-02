@@ -71,6 +71,18 @@ class AdaptiveHabitSuggestion {
   final String? proposedTime;
   final List<int>? proposedWeekdays;
 
+  /// Snapshot of the habit's target at the moment this suggestion was
+  /// created. Required (alongside [originalUnit]) before direct Apply is
+  /// offered, so a later change to the habit can be detected as stale.
+  /// Suggestions created before Phase 3 never have this set.
+  final double? originalTargetValue;
+
+  /// Snapshot of the habit's unit at the moment this suggestion was
+  /// created. May legitimately be null (a unit-less habit) — [applyEligible]
+  /// callers must check [originalTargetValue] to know whether a snapshot
+  /// was taken at all.
+  final String? originalUnit;
+
   const AdaptiveHabitSuggestion({
     required this.id,
     required this.habitId,
@@ -84,6 +96,8 @@ class AdaptiveHabitSuggestion {
     this.proposedTargetValue,
     this.proposedTime,
     this.proposedWeekdays,
+    this.originalTargetValue,
+    this.originalUnit,
   });
 
   AdaptiveHabitSuggestion copyWith({
@@ -106,6 +120,8 @@ class AdaptiveHabitSuggestion {
       proposedTargetValue: proposedTargetValue ?? this.proposedTargetValue,
       proposedTime: proposedTime ?? this.proposedTime,
       proposedWeekdays: proposedWeekdays ?? this.proposedWeekdays,
+      originalTargetValue: originalTargetValue,
+      originalUnit: originalUnit,
     );
   }
 
@@ -124,6 +140,9 @@ class AdaptiveHabitSuggestion {
         'proposedTargetValue': proposedTargetValue,
       if (proposedTime != null) 'proposedTime': proposedTime,
       if (proposedWeekdays != null) 'proposedWeekdays': proposedWeekdays,
+      if (originalTargetValue != null)
+        'originalTargetValue': originalTargetValue,
+      if (originalUnit != null) 'originalUnit': originalUnit,
     };
   }
 
@@ -156,6 +175,8 @@ class AdaptiveHabitSuggestion {
 
     final proposedTargetValue = json['proposedTargetValue'];
     final proposedTime = json['proposedTime'];
+    final originalTargetValue = json['originalTargetValue'];
+    final originalUnit = json['originalUnit'];
 
     return AdaptiveHabitSuggestion(
       id: id,
@@ -172,6 +193,12 @@ class AdaptiveHabitSuggestion {
           : null,
       proposedTime: proposedTime is String ? proposedTime : null,
       proposedWeekdays: _readWeekdays(json['proposedWeekdays']),
+      // Absent on suggestions created before Phase 3 — left null so those
+      // stay loadable but ineligible for direct Apply.
+      originalTargetValue: originalTargetValue is num
+          ? originalTargetValue.toDouble()
+          : null,
+      originalUnit: originalUnit is String ? originalUnit : null,
     );
   }
 }

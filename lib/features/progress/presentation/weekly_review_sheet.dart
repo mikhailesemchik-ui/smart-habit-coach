@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smart_habit_coach/features/coach/presentation/adaptive_coach_card.dart';
 
 import '../../coach/data/adaptive_coach_service.dart';
+import '../../coach/domain/adaptive_apply_eligibility.dart';
 import '../../coach/domain/adaptive_suggestion.dart';
 import '../../home/domain/habit.dart';
 import '../../home/data/habit_storage.dart';
@@ -25,6 +26,12 @@ class WeeklyReviewSheet extends StatefulWidget {
   final AdaptiveCoachService? coachService;
   final HabitStorage? habitStorage;
 
+  /// Called immediately after a habit is successfully persisted here
+  /// (direct Apply or a successful Adjust-manually edit), so the caller
+  /// (e.g. ProgressScreen) can update its own in-memory habit list without
+  /// requiring the screen to be recreated.
+  final ValueChanged<Habit>? onHabitUpdated;
+
   const WeeklyReviewSheet({
     super.key,
     required this.localReview,
@@ -33,6 +40,7 @@ class WeeklyReviewSheet extends StatefulWidget {
     this.service,
     this.coachService,
     this.habitStorage,
+    this.onHabitUpdated,
   });
 
   @override
@@ -43,7 +51,7 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
   late final AiWeeklyReviewSource _service =
       widget.service ?? AiWeeklyReviewService();
   late final AdaptiveCoachService _coachService =
-      widget.coachService ?? AdaptiveCoachService();
+      widget.coachService ?? AdaptiveCoachService(habitStorage: _habitStorage);
   late final HabitStorage _habitStorage = widget.habitStorage ?? HabitStorage();
 
   _ReviewStatus _status = _ReviewStatus.loading;
@@ -52,6 +60,7 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
   bool _isFetching = false;
 
   PendingCoachSuggestion? _coachSuggestion;
+  bool _isApplying = false;
 
   @override
   void initState() {
@@ -101,10 +110,75 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
       AdaptiveSuggestionStatus.adjusted,
     );
     if (!mounted) return;
+    widget.onHabitUpdated?.call(updatedHabit);
     setState(() => _coachSuggestion = null);
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Habit plan updated')));
+  }
+
+  Future<void> _applySuggestion() async {
+    if (_isApplying) return;
+    final current = _coachSuggestion;
+    if (current == null) return;
+
+    setState(() => _isApplying = true);
+    final outcome = await _coachService.applySuggestion(
+      suggestion: current.suggestion,
+      currentHabit: current.habit,
+    );
+    if (!mounted) return;
+
+    switch (outcome.result) {
+      case AdaptiveApplyResult.applied:
+        widget.onHabitUpdated?.call(outcome.habit!);
+        setState(() {
+          _coachSuggestion = null;
+          _isApplying = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Suggested target applied')),
+        );
+      case AdaptiveApplyResult.habitSaveFailed:
+        setState(() => _isApplying = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Couldn't update the habit. Try again."),
+          ),
+        );
+      case AdaptiveApplyResult.suggestionSaveFailed:
+        // Partial success: the habit was saved (so its target already
+        // equals the proposal), but the suggestion status write failed.
+        // Reflect the saved habit so eligibility re-evaluates Apply away,
+        // preventing a duplicate write, while keeping the card visible.
+        final updatedHabit = outcome.habit!;
+        widget.onHabitUpdated?.call(updatedHabit);
+        setState(() {
+          _coachSuggestion = (
+            suggestion: current.suggestion,
+            habit: updatedHabit,
+          );
+          _isApplying = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "The habit was updated, but the suggestion status couldn't "
+              'be saved.',
+            ),
+          ),
+        );
+      case AdaptiveApplyResult.stale:
+      case AdaptiveApplyResult.unsupported:
+        setState(() => _isApplying = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This suggestion needs review because the habit has changed.',
+            ),
+          ),
+        );
+    }
   }
 
   Future<void> _persistHabit(Habit habit) async {
@@ -221,6 +295,14 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
             habit: _coachSuggestion!.habit,
             onKeep: _keepCurrentPlan,
             onAdjust: _adjustManually,
+            onApply:
+                !_isApplying &&
+                    isApplyEligible(
+                      suggestion: _coachSuggestion!.suggestion,
+                      habit: _coachSuggestion!.habit,
+                    )
+                ? _applySuggestion
+                : null,
           ),
         ],
         const SizedBox(height: 24),

@@ -1,4 +1,6 @@
+import '../../home/data/habit_storage.dart';
 import '../../home/domain/habit.dart';
+import '../domain/adaptive_apply_eligibility.dart';
 import '../domain/adaptive_suggestion.dart';
 import '../domain/adaptive_suggestion_detector.dart';
 import '../domain/adaptive_suggestion_patterns.dart' show mondayOf;
@@ -10,6 +12,36 @@ typedef PendingCoachSuggestion = ({
   Habit habit,
 });
 
+/// Outcome states for [AdaptiveCoachService.applySuggestion]. Expected
+/// (non-exceptional) results only — storage/validation failures are
+/// reported here rather than thrown.
+enum AdaptiveApplyResult {
+  applied,
+  stale,
+  habitSaveFailed,
+  suggestionSaveFailed,
+  unsupported,
+}
+
+/// Result of a direct-apply attempt.
+///
+/// [habit] carries the up-to-date habit whenever the habit save itself
+/// succeeded (i.e. for [AdaptiveApplyResult.applied] and
+/// [AdaptiveApplyResult.suggestionSaveFailed]), so the caller can update
+/// its in-memory state even on partial failure. [suggestion] is only set
+/// for a fully successful apply.
+class AdaptiveApplyOutcome {
+  final AdaptiveApplyResult result;
+  final Habit? habit;
+  final AdaptiveHabitSuggestion? suggestion;
+
+  const AdaptiveApplyOutcome({
+    required this.result,
+    this.habit,
+    this.suggestion,
+  });
+}
+
 /// Coordinates loading, generating, and updating Adaptive Coach suggestions
 /// for Weekly Review. All detection stays local and deterministic (Phase 1);
 /// this layer only adds persistence and habit-lookup around it.
@@ -18,9 +50,13 @@ typedef PendingCoachSuggestion = ({
 /// being shown rather than a crash or a false success.
 class AdaptiveCoachService {
   final AdaptiveSuggestionStorage _storage;
+  final HabitStorage _habitStorage;
 
-  AdaptiveCoachService({AdaptiveSuggestionStorage? storage})
-    : _storage = storage ?? AdaptiveSuggestionStorage();
+  AdaptiveCoachService({
+    AdaptiveSuggestionStorage? storage,
+    HabitStorage? habitStorage,
+  }) : _storage = storage ?? AdaptiveSuggestionStorage(),
+       _habitStorage = habitStorage ?? HabitStorage();
 
   /// Returns the single pending suggestion (and its habit) to show in
   /// Weekly Review, generating one if none exists yet for the current
@@ -60,6 +96,81 @@ class AdaptiveCoachService {
     try {
       final all = await _storage.loadSuggestions();
       await _saveWithStatus(all, suggestion, status);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Directly applies a fully-specified, still-eligible [suggestion] to
+  /// [currentHabit] (Phase 3: only [AdaptiveSuggestionType
+  /// .reduceQuantitativeTarget]). Re-validates eligibility against
+  /// [currentHabit] before doing anything, then persists in order:
+  /// habit first, suggestion status second — see [AdaptiveApplyResult] for
+  /// what each partial-failure outcome means for the caller.
+  Future<AdaptiveApplyOutcome> applySuggestion({
+    required AdaptiveHabitSuggestion suggestion,
+    required Habit currentHabit,
+  }) async {
+    final eligibility = evaluateApplyEligibility(
+      suggestion: suggestion,
+      habit: currentHabit,
+    );
+    if (eligibility != AdaptiveApplyEligibility.eligible) {
+      if (suggestion.type != AdaptiveSuggestionType.reduceQuantitativeTarget) {
+        return const AdaptiveApplyOutcome(
+          result: AdaptiveApplyResult.unsupported,
+        );
+      }
+      return AdaptiveApplyOutcome(
+        result: AdaptiveApplyResult.stale,
+        habit: currentHabit,
+      );
+    }
+
+    final updatedHabit = currentHabit.copyWith(
+      targetValue: suggestion.proposedTargetValue,
+    );
+
+    final habitSaved = await _saveHabit(updatedHabit);
+    if (!habitSaved) {
+      return const AdaptiveApplyOutcome(
+        result: AdaptiveApplyResult.habitSaveFailed,
+      );
+    }
+
+    final statusSaved = await setStatus(
+      suggestion,
+      AdaptiveSuggestionStatus.applied,
+    );
+    if (!statusSaved) {
+      // Partial success: the habit is already saved with the new target,
+      // so re-evaluating eligibility against it will naturally return
+      // targetChanged/proposalNotLower and hide Apply, preventing a
+      // duplicate write without any extra flag.
+      return AdaptiveApplyOutcome(
+        result: AdaptiveApplyResult.suggestionSaveFailed,
+        habit: updatedHabit,
+      );
+    }
+
+    return AdaptiveApplyOutcome(
+      result: AdaptiveApplyResult.applied,
+      habit: updatedHabit,
+      suggestion: suggestion.copyWith(status: AdaptiveSuggestionStatus.applied),
+    );
+  }
+
+  Future<bool> _saveHabit(Habit habit) async {
+    try {
+      final all = await _habitStorage.loadHabits() ?? [];
+      final index = all.indexWhere((h) => h.id == habit.id);
+      if (index >= 0) {
+        all[index] = habit;
+      } else {
+        all.add(habit);
+      }
+      await _habitStorage.saveHabits(all);
       return true;
     } catch (_) {
       return false;

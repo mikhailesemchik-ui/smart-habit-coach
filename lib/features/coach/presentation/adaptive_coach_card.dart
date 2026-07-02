@@ -13,12 +13,17 @@ class AdaptiveCoachCard extends StatelessWidget {
   final VoidCallback onKeep;
   final VoidCallback onAdjust;
 
+  /// Non-null only when a safe, fully-specified direct apply is available
+  /// (Phase 3: reduceQuantitativeTarget with a proposed target value).
+  final VoidCallback? onApply;
+
   const AdaptiveCoachCard({
     super.key,
     required this.suggestion,
     required this.habit,
     required this.onKeep,
     required this.onAdjust,
+    this.onApply,
   });
 
   @override
@@ -62,10 +67,21 @@ class AdaptiveCoachCard extends StatelessWidget {
                   onPressed: onKeep,
                   child: const Text('Keep current plan'),
                 ),
-                FilledButton(
-                  onPressed: onAdjust,
-                  child: const Text('Adjust manually'),
-                ),
+                if (onApply != null)
+                  OutlinedButton(
+                    onPressed: onAdjust,
+                    child: const Text('Adjust manually'),
+                  )
+                else
+                  FilledButton(
+                    onPressed: onAdjust,
+                    child: const Text('Adjust manually'),
+                  ),
+                if (onApply != null)
+                  FilledButton(
+                    onPressed: onApply,
+                    child: const Text('Apply suggestion'),
+                  ),
               ],
             ),
           ],
