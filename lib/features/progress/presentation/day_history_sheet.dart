@@ -41,11 +41,18 @@ class DayHistorySheet extends StatefulWidget {
   final List<Habit> habits;
   final void Function(List<Habit>) onHabitsChanged;
 
+  /// When provided, SnackBars are shown on this messenger (the parent
+  /// screen's) rather than the bottom-sheet's own context. This ensures
+  /// the SnackBar appears on the correct Scaffold when the sheet is nested
+  /// inside another modal or an IndexedStack with multiple registered Scaffolds.
+  final ScaffoldMessengerState? scaffoldMessenger;
+
   const DayHistorySheet({
     super.key,
     required this.day,
     required this.habits,
     required this.onHabitsChanged,
+    this.scaffoldMessenger,
   });
 
   @override
@@ -77,9 +84,13 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
   /// independent of any instance state fields — this keeps each undo
   /// opportunity bound to the exact snapshot it was created with, even when
   /// the sheet has been disposed or further changes have occurred.
+  ///
+  /// Uses [widget.scaffoldMessenger] when available so the SnackBar appears
+  /// on the correct Scaffold (the parent screen's), not on whatever scaffold
+  /// the root ScaffoldMessenger picks when multiple are registered.
   void _showUndoSnackBar(String message, Habit prevHabit, int allIndex) {
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = widget.scaffoldMessenger ?? ScaffoldMessenger.of(context);
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(

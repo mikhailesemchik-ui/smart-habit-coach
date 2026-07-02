@@ -57,6 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // Session-only undo for the last state-changing action.
   Habit? _undoPrev;
   int? _undoHabitIndex;
+  // Incremented on every new undo opportunity so stale .closed callbacks
+  // from the previous SnackBar cannot clear a newer action's undo state.
+  int _undoToken = 0;
 
   @override
   void initState() {
@@ -80,24 +83,38 @@ class _HomeScreenState extends State<HomeScreen> {
     _undoPrev = prev;
     _undoHabitIndex = index;
     if (!mounted) return;
+    _undoToken++;
+    final token = _undoToken;
     final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(label: 'Undo', onPressed: _undo),
+    messenger.hideCurrentSnackBar();
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Expanded(child: Text(message)),
+            TextButton(
+              onPressed: () {
+                _undo();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                }
+              },
+              child: const Text('Undo'),
+            ),
+          ],
         ),
-      ).closed.then((reason) {
-        if (!mounted) return;
-        if (reason != SnackBarClosedReason.action) {
-          setState(() {
-            _undoPrev = null;
-            _undoHabitIndex = null;
-          });
-        }
-      });
+        duration: const Duration(seconds: 4),
+      ),
+    );
+    controller.closed.then((_) {
+      if (!mounted) return;
+      if (token == _undoToken) {
+        setState(() {
+          _undoPrev = null;
+          _undoHabitIndex = null;
+        });
+      }
+    });
   }
 
   void _undo() {

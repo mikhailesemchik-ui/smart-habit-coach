@@ -36,11 +36,16 @@ class HabitHistoryCalendarSheet extends StatefulWidget {
   final DateTime today;
   final void Function(List<Habit>) onHabitsChanged;
 
+  /// Passed through to [DayHistorySheet] so SnackBars appear on the parent
+  /// screen's Scaffold. See [DayHistorySheet.scaffoldMessenger].
+  final ScaffoldMessengerState? scaffoldMessenger;
+
   const HabitHistoryCalendarSheet({
     super.key,
     required this.habits,
     required this.today,
     required this.onHabitsChanged,
+    this.scaffoldMessenger,
   });
 
   @override
@@ -91,6 +96,7 @@ class _HabitHistoryCalendarSheetState extends State<HabitHistoryCalendarSheet> {
           setState(() => _habits = updated);
           widget.onHabitsChanged(updated);
         },
+        scaffoldMessenger: widget.scaffoldMessenger,
       ),
     );
   }

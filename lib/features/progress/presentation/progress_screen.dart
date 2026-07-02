@@ -49,6 +49,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   void _openCalendar() {
     final activeHabits = _habits.where((h) => h.isActive).toList();
+    // Capture the parent screen's ScaffoldMessenger so DayHistorySheet (opened
+    // from inside HabitHistoryCalendarSheet) shows SnackBars on the correct
+    // Scaffold rather than whatever the root messenger happens to pick.
+    final messenger = ScaffoldMessenger.of(context);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -59,6 +63,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (!mounted) return;
           _mergeActiveHabits(updated);
         },
+        scaffoldMessenger: messenger,
       ),
     );
   }
@@ -69,6 +74,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
     if (day.isAfter(today)) return;
 
     final activeHabits = _habits.where((h) => h.isActive).toList();
+    // Capture the parent screen's ScaffoldMessenger before opening the modal.
+    final messenger = ScaffoldMessenger.of(context);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -79,6 +86,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (!mounted) return;
           _mergeActiveHabits(updated);
         },
+        scaffoldMessenger: messenger,
       ),
     );
   }

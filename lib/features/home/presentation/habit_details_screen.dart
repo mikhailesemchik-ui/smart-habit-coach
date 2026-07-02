@@ -61,6 +61,7 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
 
   /// Saved before a date mutation for session-only undo.
   Habit? _undoHabit;
+  int _undoToken = 0;
 
   @override
   void initState() {
@@ -76,6 +77,8 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
 
   void _showUndoSnackBar(String message) {
     if (!mounted || _undoHabit == null) return;
+    _undoToken++;
+    final token = _undoToken;
     final messenger = ScaffoldMessenger.of(context);
     messenger
       ..hideCurrentSnackBar()
@@ -87,7 +90,7 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
         ),
       ).closed.then((reason) {
         if (!mounted) return;
-        if (reason != SnackBarClosedReason.action) {
+        if (reason != SnackBarClosedReason.action && token == _undoToken) {
           setState(() => _undoHabit = null);
         }
       });

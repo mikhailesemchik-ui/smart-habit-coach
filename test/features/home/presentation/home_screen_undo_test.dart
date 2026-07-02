@@ -3,8 +3,32 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_habit_coach/features/home/data/notification_service.dart';
 import 'package:smart_habit_coach/features/home/domain/date_key.dart';
+import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
+
+class _FakeNotificationService extends NotificationService {
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> scheduleHabitReminder(Habit habit) async {}
+
+  @override
+  Future<void> cancelHabitReminder(String habitId) async {}
+}
+
+Widget _homeScreen() => MaterialApp(
+  home: HomeScreen(notificationService: _FakeNotificationService()),
+);
+
+Future<void> _pumpSnackBarVisible(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
 
 const _binaryHabit = {
   'id': '1',
@@ -26,7 +50,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
@@ -48,17 +72,17 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     // Toggle → completed.
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
 
     // Undo → back to uncompleted.
     await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
   });
 
@@ -70,7 +94,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
@@ -90,7 +114,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(PopupMenuButton<String>));
@@ -100,7 +124,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField).first, 'Test note');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.text('Note saved'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
@@ -116,7 +140,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     // Add note.
@@ -126,13 +150,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Temp note');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.textContaining('Temp note'), findsOneWidget);
 
     // Undo → note preview disappears.
     await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.textContaining('Temp note'), findsNothing);
   });
@@ -153,7 +177,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     // First toggle.
@@ -178,7 +202,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(PopupMenuButton<String>));
@@ -187,7 +211,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.text('Habit updated'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
@@ -203,7 +227,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(PopupMenuButton<String>));
@@ -212,12 +236,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.textContaining('Too tired'), findsOneWidget);
 
     await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.textContaining('Too tired'), findsNothing);
   });
@@ -244,7 +268,7 @@ void main() {
         ]),
       });
 
-      await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+      await tester.pumpWidget(_homeScreen());
       await tester.pumpAndSettle();
 
       // Tap log progress (habit is partial but not complete).
@@ -254,7 +278,7 @@ void main() {
       // Clear the field and save 0.
       await tester.enterText(find.byType(TextField).first, '0');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-      await tester.pumpAndSettle();
+      await _pumpSnackBarVisible(tester);
 
       expect(find.text('Progress reset'), findsOneWidget);
     },
@@ -280,7 +304,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Log progress'));
@@ -288,7 +312,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField).first, '2');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.text('Habit updated'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
@@ -318,7 +342,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     // Log 2 L.
@@ -326,13 +350,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '2');
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.textContaining('2'), findsWidgets);
 
     // Undo → progress removed, shows "Log progress" tooltip again.
     await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.textContaining('2 / 3 L'), findsNothing);
   });
@@ -355,7 +379,7 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     // Tap toggle — opens the minimum version picker.
@@ -363,7 +387,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Complete fully'));
-    await tester.pumpAndSettle();
+    await _pumpSnackBarVisible(tester);
 
     expect(find.text('Habit updated'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
@@ -378,7 +402,7 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
@@ -389,6 +413,8 @@ void main() {
     expect(bar.duration, const Duration(seconds: 4));
   });
 
+  // ── Lifecycle / timing tests ──────────────────────────────────────────────
+
   // Test 30: SnackBar is visible immediately after action
   testWidgets('SnackBar is visible immediately after toggling habit', (
     tester,
@@ -397,36 +423,88 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
-    await tester.pump(); // one frame — SnackBar queued
+    await tester.pump();
 
     expect(find.text('Habit updated'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
   });
 
-  // Test 31: SnackBar is still visible before timeout (< 4 s)
-  testWidgets('SnackBar is still visible before the 4 s timeout', (
+  // Test 31: SnackBar is still visible well before the 4-second mark
+  testWidgets('SnackBar is still visible at 3 s (before timeout)', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
-    await tester.pump(); // show snackbar
-    await tester.pump(const Duration(seconds: 3)); // well under 4 s
+    await tester.pump(); // entry animation starts
+    await tester.pump(const Duration(seconds: 3)); // well before 4-s timer
 
     expect(find.text('Undo'), findsOneWidget);
   });
 
-  // Test 32: Undo works before timeout — tapping Undo restores previous state
-  testWidgets('Undo tapped before timeout restores previous state', (
+  // Test 32: SnackBar auto-dismisses after the 4-second display period.
+  //
+  // Two bare pump() calls establish the Ticker's _startTime at FakeAsync t=0.
+  // pump(300ms) completes the 250ms entry animation and creates the 4s display
+  // timer. pump(4s+1ms) advances past the timer so it fires and starts the
+  // 250ms exit animation. pump(300ms) completes the exit.
+  testWidgets('SnackBar auto-dismisses after the 4 s display period', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'habits': jsonEncode([_binaryHabit]),
+    });
+
+    await tester.pumpWidget(_homeScreen());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.radio_button_unchecked));
+    await tester.pump(); // handleDrawFrame: forward() called, Ticker registered
+    await tester.pump(); // first Ticker tick: _startTime set, elapsed=0
+    await tester.pump(const Duration(milliseconds: 300)); // entry done
+    await tester.pump(
+      const Duration(seconds: 4, milliseconds: 1),
+    ); // timer fires
+    await tester.pump(const Duration(milliseconds: 300)); // exit done
+
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('Undo'), findsNothing);
+  });
+
+  // Test 33: Undo still works when tapped before the timeout
+  testWidgets('Undo before timeout restores previous state', (tester) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1.0;
+
+    SharedPreferences.setMockInitialValues({
+      'habits': jsonEncode([_binaryHabit]),
+    });
+
+    await tester.pumpWidget(_homeScreen());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.radio_button_unchecked));
+    await _pumpSnackBarVisible(tester);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+  });
+
+  // Test 34: After auto-dismiss, habit state remains in the toggled state
+  // (undo was not applied — there is nothing to tap).
+  testWidgets('habit stays toggled after SnackBar auto-dismisses', (
     tester,
   ) async {
     addTearDown(tester.view.reset);
@@ -437,22 +515,56 @@ void main() {
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
-    // Toggle → completed.
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // entry animation
+    await tester.pump(
+      const Duration(seconds: 4, milliseconds: 100),
+    ); // timer fires
+    await tester.pump(const Duration(milliseconds: 300)); // exit animation
 
-    // Undo before timeout → back to uncompleted.
-    await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+    expect(find.text('Undo'), findsNothing);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
   });
 
-  // Test 33: A second action replaces the first SnackBar
-  testWidgets('second action hides first SnackBar and shows new one', (
+  // Test 35: A second action replaces the first SnackBar
+  testWidgets('second action replaces the first SnackBar', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'habits': jsonEncode([
+        _binaryHabit,
+        {
+          'id': '2',
+          'title': 'Walk',
+          'scheduledTime': '09:00 AM',
+          'iconId': 'directions_walk',
+          'completedDates': <String>[],
+          'weekdays': [1, 2, 3, 4, 5, 6, 7],
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(_homeScreen());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.radio_button_unchecked).first);
+    await tester.pump();
+    expect(find.text('Habit updated'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.radio_button_unchecked).last);
+    await tester.pump();
+
+    expect(find.text('Habit updated'), findsOneWidget);
+    expect(find.text('Undo'), findsOneWidget);
+    expect(find.byType(SnackBar), findsOneWidget);
+  });
+
+  // Test 36: The second action remains undoable even though the first
+  // SnackBar's .closed callback fires when it is hidden.
+  // (Token guard: the stale callback must not clear the new undo state.)
+  testWidgets('second action remains undoable after first SnackBar is hidden', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -469,42 +581,62 @@ void main() {
       ]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
-    // First toggle — first SnackBar.
+    // Toggle first habit — SnackBar 1 appears.
     await tester.tap(find.byIcon(Icons.radio_button_unchecked).first);
     await tester.pump();
-    expect(find.text('Habit updated'), findsOneWidget);
-
-    // Second toggle — second SnackBar replaces first.
-    await tester.tap(find.byIcon(Icons.radio_button_unchecked).last);
-    await tester.pump();
-
-    // Exactly one SnackBar remains.
-    expect(find.text('Habit updated'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
+
+    // Toggle second habit — SnackBar 1 is hidden (SnackBarClosedReason.hide),
+    // SnackBar 2 is queued.
+    await tester.tap(find.byIcon(Icons.radio_button_unchecked).last);
+    await tester.pump(); // SnackBar 1 begins exit; SnackBar 2 queued
+    await tester.pump(
+      const Duration(milliseconds: 50),
+    ); // advance exit animation
+
+    // Without the token guard, the stale .closed callback for SnackBar 1 would
+    // have cleared _undoPrev, making undo do nothing. With the guard the undo
+    // state for the second action is still intact.
+    expect(find.text('Undo'), findsOneWidget);
+
+    // Invoke undo directly: the button is in the render tree but its computed
+    // centre can fall slightly outside the viewport with two habits rendered,
+    // so we call onPressed() instead of using a position-based tap.
+    tester
+        .widget<TextButton>(find.widgetWithText(TextButton, 'Undo'))
+        .onPressed
+        ?.call();
+    await tester.pump(); // process the undo setState
+
+    // Only the second habit reverts to unchecked; the first stays checked.
+    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
   });
 
-  // Test 34: SnackBar uses hideCurrentSnackBar (cascade pattern — no
-  // clearSnackBars) so a second show replaces without leaving ghost bars.
-  testWidgets('SnackBar action uses cascade hideCurrentSnackBar pattern', (
+  // Test 37: SnackBar is not re-shown on subsequent rebuild frames.
+  // (Verifies showSnackBar is not called inside build.)
+  testWidgets('SnackBar is not re-shown on subsequent rebuild frames', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
       'habits': jsonEncode([_binaryHabit]),
     });
 
-    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pumpWidget(_homeScreen());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
     await tester.pump();
 
-    // The SnackBar should have no persistent/fixed behavior that prevents
-    // auto-dismiss — verify there is exactly one SnackBar widget.
+    // Several more frames — would accumulate SnackBars if showSnackBar
+    // were mistakenly called during build.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
     expect(find.byType(SnackBar), findsOneWidget);
-    // And the action label is present, meaning the action callback is wired.
-    expect(find.text('Undo'), findsOneWidget);
+    expect(find.text('Habit updated'), findsOneWidget);
   });
 }
