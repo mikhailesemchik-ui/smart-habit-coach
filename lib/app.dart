@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/storage/legacy_migration_runner.dart';
 import 'core/storage/user_data_schema_migrator.dart';
+import 'features/auth/data/auth_repository.dart';
 import 'features/navigation/presentation/main_navigation_screen.dart';
 import 'features/onboarding/data/onboarding_storage.dart';
 import 'features/onboarding/presentation/onboarding_screen.dart';
@@ -12,50 +13,35 @@ import 'features/startup/presentation/startup_retry_screen.dart';
 
 enum _StartupPhase { establishingIdentity, retryNeeded, ready }
 
-/// Startup ordering (Phase 1A):
-/// 1. Supabase is initialized in `main.dart` before this widget is built.
-/// 2. Restore a persisted session, or complete anonymous sign-in
-///    ([AuthSessionGateway.ensureSession]) — no namespaced storage is
-///    touched before this succeeds.
-/// 3. A real, non-blank UID is now available (never a passthrough).
-/// 4. Run the one-time legacy-namespace migration
-///    ([LegacyMigrationRunner]). A recorded conflict does not block
-///    startup — both datasets are preserved and schema migration still
-///    runs for the active namespaced destination.
-/// 5. Run the per-UID local schema migration
-///    ([LocalUserDataSchemaMigrator]) for the active namespace.
-/// 6. Only once 4 and 5 have both succeeded are settings/onboarding/habit
-///    data read.
-/// 7. The normal app UI is shown.
-///
-/// If step 2 or step 5 fails, a non-destructive [StartupRetryScreen] is
-/// shown instead of the normal app; retrying re-runs the whole pipeline
-/// (steps 2-6), which is safe because every step is idempotent.
+enum _RetryReason { network, storageInit }
+
 class SmartHabitCoachApp extends StatefulWidget {
   final AuthSessionGateway authGateway;
   final LocalUserDataSchemaMigrator schemaMigrator;
+  final AuthRepository? accountAuthRepository;
 
   SmartHabitCoachApp({
     super.key,
     this.authGateway = const SupabaseAuthSessionGateway(),
     LocalUserDataSchemaMigrator? schemaMigrator,
+    this.accountAuthRepository,
   }) : schemaMigrator = schemaMigrator ?? LocalUserDataSchemaMigrator();
 
   @override
   State<SmartHabitCoachApp> createState() => _SmartHabitCoachAppState();
 }
 
-enum _RetryReason { network, storageInit }
-
 class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
   final SettingsStorage _settingsStorage = SettingsStorage();
   final OnboardingStorage _onboardingStorage = OnboardingStorage();
+
   AppSettings _settings = AppSettings.defaults;
   _StartupPhase _phase = _StartupPhase.establishingIdentity;
   _RetryReason? _retryReason;
   bool _isRetrying = false;
   bool _isLoadingAppData = true;
   bool _showOnboarding = false;
+  int _identityGeneration = 0;
 
   @override
   void initState() {
@@ -63,9 +49,6 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
     _runStartupPipeline();
   }
 
-  /// Runs the full identity → legacy migration → schema migration
-  /// pipeline. Safe to call repeatedly (each step is idempotent), so both
-  /// the initial attempt and every Retry tap use this same method.
   Future<void> _runStartupPipeline() async {
     final established = await widget.authGateway.ensureSession();
     if (!mounted) return;
@@ -77,9 +60,6 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
       return;
     }
 
-    // A recorded migration conflict is a valid, non-fatal outcome: both
-    // datasets are preserved and startup continues for the active
-    // namespaced destination, per the approved safe behavior.
     await LegacyMigrationRunner().run();
     if (!mounted) return;
 
@@ -105,6 +85,23 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
     setState(() => _isRetrying = false);
   }
 
+  Future<void> _handleIdentityChanged() async {
+    setState(() => _isLoadingAppData = true);
+    final schemaReady = await widget.schemaMigrator.run();
+    if (!mounted) return;
+    if (!schemaReady) {
+      setState(() {
+        _phase = _StartupPhase.retryNeeded;
+        _retryReason = _RetryReason.storageInit;
+        _isLoadingAppData = false;
+      });
+      return;
+    }
+
+    _identityGeneration++;
+    await _loadInitialState();
+  }
+
   Future<void> _loadInitialState() async {
     final settings = await _settingsStorage.loadSettings();
     final onboardingCompleted = await _onboardingStorage
@@ -118,9 +115,6 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
   }
 
   Future<void> _updateSettings(AppSettings settings) async {
-    // Optimistic update first so theme/name changes feel instant, then
-    // reconcile with the actually-persisted (stamped) settings once the
-    // centralized write completes.
     setState(() => _settings = settings);
     final stamped = await _settingsStorage.updateSettings(settings);
     if (!mounted) return;
@@ -129,12 +123,13 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
 
   Future<void> _completeOnboarding() async {
     await _onboardingStorage.setOnboardingCompleted();
+    if (!mounted) return;
     setState(() => _showOnboarding = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final seedColor = Colors.teal;
+    const seedColor = Colors.teal;
 
     Widget home;
     if (_phase == _StartupPhase.retryNeeded) {
@@ -157,8 +152,11 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
       home = OnboardingScreen(onCompleted: _completeOnboarding);
     } else {
       home = MainNavigationScreen(
+        key: ValueKey(_identityGeneration),
         settings: _settings,
         onSettingsChanged: _updateSettings,
+        onIdentityChanged: _handleIdentityChanged,
+        accountAuthRepository: widget.accountAuthRepository,
       );
     }
 

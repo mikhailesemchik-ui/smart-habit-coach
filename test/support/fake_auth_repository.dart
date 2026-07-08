@@ -19,6 +19,7 @@ class FakeAuthRepository implements AuthRepository {
 
   final bool linkedEmailConfirmed;
   final AuthIdentity? signInIdentity;
+  final void Function(AuthIdentity identity)? onIdentityChanged;
 
   int ensureAnonymousSessionCallCount = 0;
   int signInWithEmailPasswordCallCount = 0;
@@ -35,6 +36,7 @@ class FakeAuthRepository implements AuthRepository {
     this.linkResultUidOverride,
     this.linkedEmailConfirmed = true,
     this.signInIdentity,
+    this.onIdentityChanged,
   }) : _identity = initialIdentity ?? AuthIdentity.unauthenticated;
 
   @override
@@ -58,6 +60,7 @@ class FakeAuthRepository implements AuthRepository {
       uid: anonymousUid,
       kind: AuthIdentityKind.anonymous,
     );
+    onIdentityChanged?.call(_identity);
     return AuthResult.success(_identity);
   }
 
@@ -93,6 +96,7 @@ class FakeAuthRepository implements AuthRepository {
       email: email,
       emailConfirmed: linkedEmailConfirmed,
     );
+    onIdentityChanged?.call(_identity);
     return AuthResult.success(_identity);
   }
 
@@ -113,6 +117,7 @@ class FakeAuthRepository implements AuthRepository {
           email: email,
           emailConfirmed: true,
         );
+    onIdentityChanged?.call(_identity);
     return AuthResult.success(_identity);
   }
 
@@ -123,6 +128,7 @@ class FakeAuthRepository implements AuthRepository {
       return AuthResult.failure(signOutFailure!);
     }
     _identity = AuthIdentity.unauthenticated;
+    onIdentityChanged?.call(_identity);
     return AuthResult.success(null);
   }
 }

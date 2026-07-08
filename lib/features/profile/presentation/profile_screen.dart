@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 
+import '../../auth/data/auth_repository.dart';
+import '../../auth/presentation/account_screen.dart';
 import '../../home/presentation/archived_habits_screen.dart';
 import '../domain/app_settings.dart';
+import 'profile_keys.dart';
 
 class ProfileScreen extends StatefulWidget {
   final AppSettings settings;
   final ValueChanged<AppSettings> onSettingsChanged;
+  final Future<void> Function()? onIdentityChanged;
+  final AuthRepository? accountAuthRepository;
 
   const ProfileScreen({
     super.key,
     required this.settings,
     required this.onSettingsChanged,
+    this.onIdentityChanged,
+    this.accountAuthRepository,
   });
 
   @override
@@ -24,6 +31,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.settings.displayName);
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings.displayName != widget.settings.displayName &&
+        _nameController.text != widget.settings.displayName) {
+      _nameController.text = widget.settings.displayName;
+    }
   }
 
   @override
@@ -45,6 +61,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _onStartOfWeekChanged(Set<StartOfWeek> selection) {
     widget.onSettingsChanged(
       widget.settings.copyWith(startOfWeek: selection.first),
+    );
+  }
+
+  Future<void> _openAccount() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountScreen(
+          authRepository: widget.accountAuthRepository,
+          onIdentityChanged: widget.onIdentityChanged,
+        ),
+      ),
     );
   }
 
@@ -116,6 +144,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 24),
           const Divider(),
+          ListTile(
+            key: profileAccountTileKey,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('Account'),
+            subtitle: const Text('Link, sign in, or sign out'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _openAccount,
+          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.archive_outlined),
