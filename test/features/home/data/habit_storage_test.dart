@@ -8,6 +8,7 @@ import 'package:smart_habit_coach/features/home/data/habit_storage.dart';
 import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 
+import '../../../support/fake_clock.dart';
 import '../../../support/test_namespace.dart';
 
 const _habitsKey = 'habits:$testNamespaceUid';
@@ -279,5 +280,203 @@ void main() {
         throwsStateError,
       );
     });
+  });
+
+  group('HabitStorage.upsertHabit (Phase 1B centralized mutation)', () {
+    tearDown(() {
+      LocalNamespaceResolver.debugUidOverride = testNamespaceUid;
+    });
+
+    Habit newHabit({String id = '1', Set<String> completedDates = const {}}) {
+      return Habit(
+        id: id,
+        title: 'Drink water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        completedDates: completedDates,
+      );
+    }
+
+    test(
+      'creating a habit stamps createdAt == updatedAt == the fixed clock time',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final clock = FakeClock(DateTime.utc(2026, 1, 1));
+        final storage = HabitStorage(clock: clock);
+
+        final stamped = await storage.upsertHabit(newHabit());
+
+        expect(stamped.createdAt, DateTime.utc(2026, 1, 1));
+        expect(stamped.updatedAt, DateTime.utc(2026, 1, 1));
+        final loaded = await storage.loadHabits();
+        expect(loaded!.single.createdAt, DateTime.utc(2026, 1, 1));
+        expect(loaded.single.updatedAt, DateTime.utc(2026, 1, 1));
+      },
+    );
+
+    test(
+      'updating an existing habit preserves createdAt and advances updatedAt',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final clock = FakeClock(DateTime.utc(2026, 1, 1));
+        final storage = HabitStorage(clock: clock);
+        await storage.upsertHabit(newHabit());
+
+        clock.value = DateTime.utc(2026, 6, 1);
+        final updated = await storage.upsertHabit(
+          newHabit(completedDates: {'2026-06-01'}),
+        );
+
+        expect(updated.createdAt, DateTime.utc(2026, 1, 1));
+        expect(updated.updatedAt, DateTime.utc(2026, 6, 1));
+        expect(updated.completedDates, {'2026-06-01'});
+      },
+    );
+
+    test(
+      'deletedAt is preserved unless the caller explicitly changes it',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final clock = FakeClock(DateTime.utc(2026, 1, 1));
+        final storage = HabitStorage(clock: clock);
+        final habit = newHabit();
+        await storage.upsertHabit(habit);
+
+        final withDeletion = habit.copyWith(
+          deletedAt: DateTime.utc(2026, 3, 1),
+        );
+        clock.value = DateTime.utc(2026, 6, 1);
+        final stamped = await storage.upsertHabit(withDeletion);
+        expect(stamped.deletedAt, DateTime.utc(2026, 3, 1));
+
+        // A later, unrelated mutation that doesn't touch deletedAt preserves it.
+        clock.value = DateTime.utc(2026, 7, 1);
+        final again = await storage.upsertHabit(
+          stamped.copyWith(completedDates: {'2026-07-01'}),
+        );
+        expect(again.deletedAt, DateTime.utc(2026, 3, 1));
+      },
+    );
+
+    test(
+      'caller-supplied legacy sentinel timestamps do not survive normal creation',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final clock = FakeClock(DateTime.utc(2026, 1, 1));
+        final storage = HabitStorage(clock: clock);
+
+        // Default-constructed Habit carries the legacy sentinel (2000-01-01)
+        // unless explicitly given a createdAt — this is exactly the shape an
+        // in-memory sample habit has before its first save.
+        final sample = Habit(
+          id: 'sample-1',
+          title: 'Read',
+          scheduledTime: '09:00 AM',
+          icon: Icons.book,
+        );
+        expect(sample.createdAt, DateTime.utc(2000, 1, 1));
+
+        final stamped = await storage.upsertHabit(sample);
+
+        expect(stamped.createdAt, DateTime.utc(2026, 1, 1));
+        expect(stamped.updatedAt, DateTime.utc(2026, 1, 1));
+      },
+    );
+
+    test('upsertHabit throws when no UID is available', () async {
+      SharedPreferences.setMockInitialValues({});
+      LocalNamespaceResolver.debugUidOverride = null;
+
+      expect(() => HabitStorage().upsertHabit(newHabit()), throwsStateError);
+    });
+
+    test('upsertHabit keeps namespaced isolation between two UIDs', () async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = HabitStorage();
+
+      LocalNamespaceResolver.debugUidOverride = 'uid-a';
+      await storage.upsertHabit(newHabit(id: 'a'));
+
+      LocalNamespaceResolver.debugUidOverride = 'uid-b';
+      await storage.upsertHabit(newHabit(id: 'b'));
+      final bLoaded = await storage.loadHabits();
+
+      LocalNamespaceResolver.debugUidOverride = 'uid-a';
+      final aLoaded = await storage.loadHabits();
+
+      expect(aLoaded!.single.id, 'a');
+      expect(bLoaded!.single.id, 'b');
+    });
+
+    test(
+      'raw saveHabits still preserves supplied timestamps exactly',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = HabitStorage();
+        final habit = Habit(
+          id: '1',
+          title: 'Drink water',
+          scheduledTime: '08:00 AM',
+          icon: Icons.local_drink_outlined,
+          createdAt: DateTime.utc(2020, 1, 1),
+          updatedAt: DateTime.utc(2021, 1, 1),
+        );
+
+        await storage.saveHabits([habit]);
+        final loaded = await storage.loadHabits();
+
+        expect(loaded!.single.createdAt, DateTime.utc(2020, 1, 1));
+        expect(loaded.single.updatedAt, DateTime.utc(2021, 1, 1));
+      },
+    );
+
+    test(
+      'two near-simultaneous upserts for different habits do not lose either mutation',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = HabitStorage(
+          clock: FakeClock(DateTime.utc(2026, 1, 1)),
+        );
+        await storage.saveHabits([newHabit(id: 'a'), newHabit(id: 'b')]);
+
+        // Neither call is awaited before the other starts — without
+        // instance-level write serialization, one of these would load the
+        // pre-mutation snapshot and silently clobber the other's save.
+        final futureA = storage.upsertHabit(
+          newHabit(id: 'a', completedDates: {'2026-01-01'}),
+        );
+        final futureB = storage.upsertHabit(
+          newHabit(id: 'b', completedDates: {'2026-01-02'}),
+        );
+        await Future.wait([futureA, futureB]);
+
+        final loaded = await storage.loadHabits();
+        final a = loaded!.firstWhere((h) => h.id == 'a');
+        final b = loaded.firstWhere((h) => h.id == 'b');
+        expect(a.completedDates, {'2026-01-01'});
+        expect(b.completedDates, {'2026-01-02'});
+      },
+    );
+
+    test(
+      'a failed write does not permanently block writes queued after it',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        LocalNamespaceResolver.debugUidOverride = null;
+        final storage = HabitStorage();
+
+        await expectLater(
+          storage.upsertHabit(newHabit(id: 'a')),
+          throwsStateError,
+        );
+
+        LocalNamespaceResolver.debugUidOverride = 'uid-a';
+        final stamped = await storage.upsertHabit(newHabit(id: 'b'));
+
+        expect(stamped.id, 'b');
+        final loaded = await storage.loadHabits();
+        expect(loaded!.single.id, 'b');
+      },
+    );
   });
 }

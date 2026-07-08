@@ -104,13 +104,13 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
     );
     if (updatedHabit == null || !mounted) return;
 
-    await _persistHabit(updatedHabit);
+    final stamped = await _persistHabit(updatedHabit);
     await _coachService.setStatus(
       current.suggestion,
       AdaptiveSuggestionStatus.adjusted,
     );
     if (!mounted) return;
-    widget.onHabitUpdated?.call(updatedHabit);
+    widget.onHabitUpdated?.call(stamped);
     setState(() => _coachSuggestion = null);
     ScaffoldMessenger.of(
       context,
@@ -181,15 +181,8 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
     }
   }
 
-  Future<void> _persistHabit(Habit habit) async {
-    final all = await _habitStorage.loadHabits() ?? [];
-    final index = all.indexWhere((h) => h.id == habit.id);
-    if (index >= 0) {
-      all[index] = habit;
-    } else {
-      all.add(habit);
-    }
-    await _habitStorage.saveHabits(all);
+  Future<Habit> _persistHabit(Habit habit) {
+    return _habitStorage.upsertHabit(habit);
   }
 
   Future<void> _loadAiReview() async {

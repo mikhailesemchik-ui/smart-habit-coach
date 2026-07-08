@@ -74,7 +74,6 @@ class AdaptiveCoachService {
       final habit = _findAvailableHabit(habits, pending.habitId);
       if (habit == null) {
         await _saveWithStatus(
-          all,
           pending,
           AdaptiveSuggestionStatus.rejected,
           evidenceCode: 'habit_unavailable',
@@ -94,8 +93,7 @@ class AdaptiveCoachService {
     AdaptiveSuggestionStatus status,
   ) async {
     try {
-      final all = await _storage.loadSuggestions();
-      await _saveWithStatus(all, suggestion, status);
+      await _saveWithStatus(suggestion, status);
       return true;
     } catch (_) {
       return false;
@@ -128,12 +126,12 @@ class AdaptiveCoachService {
       );
     }
 
-    final updatedHabit = currentHabit.copyWith(
+    final proposedHabit = currentHabit.copyWith(
       targetValue: suggestion.proposedTargetValue,
     );
 
-    final habitSaved = await _saveHabit(updatedHabit);
-    if (!habitSaved) {
+    final savedHabit = await _saveHabit(proposedHabit);
+    if (savedHabit == null) {
       return const AdaptiveApplyOutcome(
         result: AdaptiveApplyResult.habitSaveFailed,
       );
@@ -150,35 +148,28 @@ class AdaptiveCoachService {
       // duplicate write without any extra flag.
       return AdaptiveApplyOutcome(
         result: AdaptiveApplyResult.suggestionSaveFailed,
-        habit: updatedHabit,
+        habit: savedHabit,
       );
     }
 
     return AdaptiveApplyOutcome(
       result: AdaptiveApplyResult.applied,
-      habit: updatedHabit,
+      habit: savedHabit,
       suggestion: suggestion.copyWith(status: AdaptiveSuggestionStatus.applied),
     );
   }
 
-  Future<bool> _saveHabit(Habit habit) async {
+  /// Returns the actually-persisted (stamped) habit on success, so callers
+  /// reflect real storage state rather than the pre-persist in-memory copy.
+  Future<Habit?> _saveHabit(Habit habit) async {
     try {
-      final all = await _habitStorage.loadHabits() ?? [];
-      final index = all.indexWhere((h) => h.id == habit.id);
-      if (index >= 0) {
-        all[index] = habit;
-      } else {
-        all.add(habit);
-      }
-      await _habitStorage.saveHabits(all);
-      return true;
+      return await _habitStorage.upsertHabit(habit);
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
   Future<void> _saveWithStatus(
-    List<AdaptiveHabitSuggestion> all,
     AdaptiveHabitSuggestion suggestion,
     AdaptiveSuggestionStatus status, {
     String? evidenceCode,
@@ -187,14 +178,7 @@ class AdaptiveCoachService {
       status: status,
       evidenceCode: evidenceCode,
     );
-    final index = all.indexWhere((s) => s.id == suggestion.id);
-    final next = List<AdaptiveHabitSuggestion>.of(all);
-    if (index >= 0) {
-      next[index] = updated;
-    } else {
-      next.add(updated);
-    }
-    await _storage.saveSuggestions(next);
+    await _storage.upsertSuggestion(updated);
   }
 
   Future<AdaptiveHabitSuggestion?> _maybeGenerate(
@@ -208,7 +192,7 @@ class AdaptiveCoachService {
       previousSuggestions: all,
     );
     if (detected == null) return null;
-    await _storage.saveSuggestions([...all, detected]);
+    await _storage.upsertSuggestion(detected);
     return detected;
   }
 

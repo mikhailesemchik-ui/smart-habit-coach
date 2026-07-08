@@ -101,8 +101,9 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
             label: 'Undo',
             onPressed: () async {
               final updated = List<Habit>.of(_allHabits);
-              updated[allIndex] = prevHabit;
-              await _storage.saveHabits(updated);
+              // Undo is its own mutation — upsertHabit stamps a new,
+              // later updatedAt.
+              updated[allIndex] = await _storage.upsertHabit(prevHabit);
               if (!mounted) return;
               setState(() {
                 _allHabits = updated;
@@ -124,8 +125,8 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
     final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
-    updated[allIndex] = updated[allIndex].toggleDate(_dateKey);
-    await _storage.saveHabits(updated);
+    final mutated = updated[allIndex].toggleDate(_dateKey);
+    updated[allIndex] = await _storage.upsertHabit(mutated);
     if (!mounted) return;
     setState(() {
       _allHabits = updated;
@@ -145,8 +146,8 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
     final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
-    updated[allIndex] = updated[allIndex].setCompletionStatus(_dateKey, status);
-    await _storage.saveHabits(updated);
+    final mutated = updated[allIndex].setCompletionStatus(_dateKey, status);
+    updated[allIndex] = await _storage.upsertHabit(mutated);
     if (!mounted) return;
     setState(() {
       _allHabits = updated;
@@ -169,12 +170,12 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
     final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
-    updated[allIndex] = updated[allIndex].setSkipReason(
+    final mutated = updated[allIndex].setSkipReason(
       widget.day,
       result.reason,
       note: result.note,
     );
-    await _storage.saveHabits(updated);
+    updated[allIndex] = await _storage.upsertHabit(mutated);
     if (!mounted) return;
     setState(() {
       _allHabits = updated;
@@ -197,12 +198,12 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
     final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
-    updated[allIndex] = updated[allIndex].setPartialReason(
+    final mutated = updated[allIndex].setPartialReason(
       widget.day,
       result.reason,
       note: result.note,
     );
-    await _storage.saveHabits(updated);
+    updated[allIndex] = await _storage.upsertHabit(mutated);
     if (!mounted) return;
     setState(() {
       _allHabits = updated;
@@ -225,8 +226,8 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
     final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
-    updated[allIndex] = updated[allIndex].setProgress(widget.day, result);
-    await _storage.saveHabits(updated);
+    final mutated = updated[allIndex].setProgress(widget.day, result);
+    updated[allIndex] = await _storage.upsertHabit(mutated);
     if (!mounted) return;
     setState(() {
       _allHabits = updated;
@@ -254,11 +255,11 @@ class _DayHistorySheetState extends State<DayHistorySheet> {
     final allIndex = _allHabits.indexWhere((h) => h.id == habit.id);
     final prev = _allHabits[allIndex];
     final updated = List<Habit>.of(_allHabits);
-    updated[allIndex] = updated[allIndex].setNote(
+    final mutated = updated[allIndex].setNote(
       widget.day,
       result.isEmpty ? null : result,
     );
-    await _storage.saveHabits(updated);
+    updated[allIndex] = await _storage.upsertHabit(mutated);
     if (!mounted) return;
     setState(() {
       _allHabits = updated;

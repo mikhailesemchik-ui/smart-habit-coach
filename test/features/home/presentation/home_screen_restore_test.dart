@@ -182,7 +182,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: MainNavigationScreen(
-            settings: const AppSettings(),
+            settings: AppSettings(),
             onSettingsChanged: (_) {},
           ),
         ),

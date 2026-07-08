@@ -117,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _undo() {
+  Future<void> _undo() async {
     final prev = _undoPrev;
     final idx = _undoHabitIndex;
     _undoPrev = null;
@@ -126,20 +126,34 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     setState(() => _habits[idx] = prev);
-    _storage.saveHabits(_habits);
+    // Undo is its own mutation — upsertHabit stamps a new, later updatedAt.
+    final stamped = await _storage.upsertHabit(prev);
+    _reconcileHabit(stamped);
+  }
+
+  // Reconciles a single stamped/persisted habit back into `_habits` after
+  // its centralized write completes, so in-memory state never drifts from
+  // what was actually persisted (createdAt/updatedAt in particular). Looks
+  // the record up by id rather than trusting a captured index, since other
+  // mutations may have completed in the meantime.
+  void _reconcileHabit(Habit stamped) {
+    if (!mounted) return;
+    final index = _habits.indexWhere((h) => h.id == stamped.id);
+    if (index == -1) return;
+    setState(() => _habits[index] = stamped);
   }
 
   // ── Habit mutations ───────────────────────────────────────────────────────
 
-  void _setHabitStatus(String id, HabitCompletionStatus status) {
+  Future<void> _setHabitStatus(String id, HabitCompletionStatus status) async {
     final index = _habits.indexWhere((h) => h.id == id);
     if (index == -1) return;
     final prev = _habits[index];
-    setState(() {
-      _habits[index] = _habits[index].setCompletionStatus(todayKey(), status);
-    });
-    _storage.saveHabits(_habits);
+    final mutated = _habits[index].setCompletionStatus(todayKey(), status);
+    setState(() => _habits[index] = mutated);
     _showUndoSnackBar('Habit updated', prev, index);
+    final stamped = await _storage.upsertHabit(mutated);
+    _reconcileHabit(stamped);
   }
 
   Future<void> _pickStatus(Habit habit) async {
@@ -152,11 +166,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final index = _habits.indexWhere((h) => h.id == habit.id);
     if (index == -1) return;
     final prev = _habits[index];
-    setState(() {
-      _habits[index] = _habits[index].setCompletionStatus(todayKey(), result);
-    });
-    _storage.saveHabits(_habits);
+    final mutated = _habits[index].setCompletionStatus(todayKey(), result);
+    setState(() => _habits[index] = mutated);
     _showUndoSnackBar('Habit updated', prev, index);
+    final stamped = await _storage.upsertHabit(mutated);
+    _reconcileHabit(stamped);
   }
 
   Future<void> _pickSkipReason(Habit habit) async {
@@ -171,15 +185,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final index = _habits.indexWhere((h) => h.id == habit.id);
     if (index == -1) return;
     final prev = _habits[index];
-    setState(() {
-      _habits[index] = _habits[index].setSkipReason(
-        today,
-        result.reason,
-        note: result.note,
-      );
-    });
-    _storage.saveHabits(_habits);
+    final mutated = _habits[index].setSkipReason(
+      today,
+      result.reason,
+      note: result.note,
+    );
+    setState(() => _habits[index] = mutated);
     _showUndoSnackBar('Habit updated', prev, index);
+    final stamped = await _storage.upsertHabit(mutated);
+    _reconcileHabit(stamped);
   }
 
   Future<void> _logProgress(Habit habit) async {
@@ -194,15 +208,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final index = _habits.indexWhere((h) => h.id == habit.id);
     if (index == -1) return;
     final prev = _habits[index];
-    setState(() {
-      _habits[index] = _habits[index].setProgress(today, result);
-    });
-    _storage.saveHabits(_habits);
+    final mutated = _habits[index].setProgress(today, result);
+    setState(() => _habits[index] = mutated);
     _showUndoSnackBar(
       result == 0 ? 'Progress reset' : 'Habit updated',
       prev,
       index,
     );
+    final stamped = await _storage.upsertHabit(mutated);
+    _reconcileHabit(stamped);
   }
 
   Future<void> _pickPartialReason(Habit habit) async {
@@ -217,15 +231,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final index = _habits.indexWhere((h) => h.id == habit.id);
     if (index == -1) return;
     final prev = _habits[index];
-    setState(() {
-      _habits[index] = _habits[index].setPartialReason(
-        today,
-        result.reason,
-        note: result.note,
-      );
-    });
-    _storage.saveHabits(_habits);
+    final mutated = _habits[index].setPartialReason(
+      today,
+      result.reason,
+      note: result.note,
+    );
+    setState(() => _habits[index] = mutated);
     _showUndoSnackBar('Habit updated', prev, index);
+    final stamped = await _storage.upsertHabit(mutated);
+    _reconcileHabit(stamped);
   }
 
   Future<void> _editNote(Habit habit) async {
@@ -240,20 +254,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final index = _habits.indexWhere((h) => h.id == habit.id);
     if (index == -1) return;
     final prev = _habits[index];
-    setState(() {
-      _habits[index] = _habits[index].setNote(
-        today,
-        result.isEmpty ? null : result,
-      );
-    });
-    _storage.saveHabits(_habits);
+    final mutated = _habits[index].setNote(
+      today,
+      result.isEmpty ? null : result,
+    );
+    setState(() => _habits[index] = mutated);
     _showUndoSnackBar('Note saved', prev, index);
+    final stamped = await _storage.upsertHabit(mutated);
+    _reconcileHabit(stamped);
   }
 
-  void _addHabit(Habit habit) {
+  Future<void> _addHabit(Habit habit) async {
     setState(() => _habits.add(habit));
-    _storage.saveHabits(_habits);
-    _notifications.scheduleHabitReminder(habit);
+    final stamped = await _storage.upsertHabit(habit);
+    _reconcileHabit(stamped);
+    await _notifications.scheduleHabitReminder(stamped);
   }
 
   Future<void> _openAddHabitSheet() async {
@@ -264,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (newHabit != null) {
-      _addHabit(newHabit);
+      await _addHabit(newHabit);
     }
   }
 
@@ -285,13 +300,24 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => AddHabitSheet(initialHabit: result.habit),
       );
       if (edited == null) return;
-      _addHabit(edited);
+      await _addHabit(edited);
     } else {
-      _addHabit(result.habit);
+      await _addHabit(result.habit);
     }
   }
 
   Future<void> _openHabitDetails(Habit habit) async {
+    // Ensures storage actually has something to read before
+    // HabitDetailsScreen's own load/persist/delete paths run. This matters
+    // on a fresh install: `_habits` may still be the in-memory-only sample
+    // habits (never yet persisted, since the user hasn't mutated any of
+    // them) — without this flush, HabitDetailsScreen would see an empty
+    // stored collection and its hard-delete path would wipe every other
+    // habit instead of just the one being removed. This is a plain re-save
+    // of the current, already-correct in-memory list (every prior mutation
+    // already went through the centralized upsertHabit path and stamped
+    // correctly), so the raw/bulk saveHabits here does not clobber any
+    // timestamp.
     await _storage.saveHabits(_habits);
     if (!mounted) return;
     await Navigator.push(

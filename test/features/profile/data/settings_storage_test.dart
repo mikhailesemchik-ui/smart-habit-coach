@@ -5,6 +5,7 @@ import 'package:smart_habit_coach/core/storage/local_namespace_resolver.dart';
 import 'package:smart_habit_coach/features/profile/data/settings_storage.dart';
 import 'package:smart_habit_coach/features/profile/domain/app_settings.dart';
 
+import '../../../support/fake_clock.dart';
 import '../../../support/test_namespace.dart';
 
 const _settingsKey = 'app_settings:$testNamespaceUid';
@@ -24,7 +25,7 @@ void main() {
     test('saveSettings then loadSettings returns the same settings', () async {
       SharedPreferences.setMockInitialValues({});
       final storage = SettingsStorage();
-      const settings = AppSettings(
+      final settings = AppSettings(
         displayName: 'Jamie',
         themeMode: ThemeMode.dark,
         startOfWeek: StartOfWeek.sunday,
@@ -69,7 +70,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       LocalNamespaceResolver.debugUidOverride = 'uid-a';
       final storage = SettingsStorage();
-      const settings = AppSettings(displayName: 'Jamie');
+      final settings = AppSettings(displayName: 'Jamie');
 
       await storage.saveSettings(settings);
 
@@ -86,10 +87,10 @@ void main() {
       final storage = SettingsStorage();
 
       LocalNamespaceResolver.debugUidOverride = 'uid-a';
-      await storage.saveSettings(const AppSettings(displayName: 'A'));
+      await storage.saveSettings(AppSettings(displayName: 'A'));
 
       LocalNamespaceResolver.debugUidOverride = 'uid-b';
-      await storage.saveSettings(const AppSettings(displayName: 'B'));
+      await storage.saveSettings(AppSettings(displayName: 'B'));
       final bLoaded = await storage.loadSettings();
 
       LocalNamespaceResolver.debugUidOverride = 'uid-a';
@@ -117,5 +118,94 @@ void main() {
         throwsStateError,
       );
     });
+  });
+
+  group('SettingsStorage.updateSettings (Phase 1B centralized mutation)', () {
+    test(
+      'a normal setting change stamps updatedAt via the injected Clock',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final clock = FakeClock(DateTime.utc(2026, 6, 1));
+        final storage = SettingsStorage(clock: clock);
+
+        final stamped = await storage.updateSettings(
+          AppSettings(displayName: 'Jamie'),
+        );
+
+        expect(stamped.updatedAt, DateTime.utc(2026, 6, 1));
+        final loaded = await storage.loadSettings();
+        expect(loaded.displayName, 'Jamie');
+        expect(loaded.updatedAt, DateTime.utc(2026, 6, 1));
+      },
+    );
+
+    test('previous value is retained when only updatedAt changes', () async {
+      SharedPreferences.setMockInitialValues({});
+      final clock = FakeClock(DateTime.utc(2026, 6, 1));
+      final storage = SettingsStorage(clock: clock);
+      await storage.updateSettings(
+        AppSettings(displayName: 'Jamie', themeMode: ThemeMode.dark),
+      );
+
+      clock.value = DateTime.utc(2026, 6, 15);
+      final current = await storage.loadSettings();
+      final updated = await storage.updateSettings(
+        current.copyWith(themeMode: ThemeMode.light),
+      );
+
+      expect(updated.displayName, 'Jamie');
+      expect(updated.themeMode, ThemeMode.light);
+      expect(updated.updatedAt, DateTime.utc(2026, 6, 15));
+    });
+
+    test(
+      'raw load of old settings without updatedAt remains compatible',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          _settingsKey:
+              '{"displayName": "Jamie", "themeMode": "system", "startOfWeek": "monday"}',
+        });
+
+        final settings = await SettingsStorage().loadSettings();
+
+        expect(settings.displayName, 'Jamie');
+        expect(settings.updatedAt, DateTime.utc(2000, 1, 1));
+      },
+    );
+
+    test('updateSettings throws when no UID is available', () async {
+      SharedPreferences.setMockInitialValues({});
+      LocalNamespaceResolver.debugUidOverride = null;
+
+      expect(
+        () => SettingsStorage().updateSettings(AppSettings.defaults),
+        throwsStateError,
+      );
+      LocalNamespaceResolver.debugUidOverride = testNamespaceUid;
+    });
+
+    test(
+      'updateSettings keeps namespaced isolation between two UIDs',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = SettingsStorage(
+          clock: FakeClock(DateTime.utc(2026, 1, 1)),
+        );
+
+        LocalNamespaceResolver.debugUidOverride = 'uid-a';
+        await storage.updateSettings(AppSettings(displayName: 'A'));
+
+        LocalNamespaceResolver.debugUidOverride = 'uid-b';
+        await storage.updateSettings(AppSettings(displayName: 'B'));
+        final bLoaded = await storage.loadSettings();
+
+        LocalNamespaceResolver.debugUidOverride = 'uid-a';
+        final aLoaded = await storage.loadSettings();
+
+        expect(aLoaded.displayName, 'A');
+        expect(bLoaded.displayName, 'B');
+        LocalNamespaceResolver.debugUidOverride = testNamespaceUid;
+      },
+    );
   });
 }

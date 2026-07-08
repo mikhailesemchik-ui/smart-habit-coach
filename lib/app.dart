@@ -117,9 +117,14 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
     });
   }
 
-  void _updateSettings(AppSettings settings) {
+  Future<void> _updateSettings(AppSettings settings) async {
+    // Optimistic update first so theme/name changes feel instant, then
+    // reconcile with the actually-persisted (stamped) settings once the
+    // centralized write completes.
     setState(() => _settings = settings);
-    _settingsStorage.saveSettings(settings);
+    final stamped = await _settingsStorage.updateSettings(settings);
+    if (!mounted) return;
+    setState(() => _settings = stamped);
   }
 
   Future<void> _completeOnboarding() async {

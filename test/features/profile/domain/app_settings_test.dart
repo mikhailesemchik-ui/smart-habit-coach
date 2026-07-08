@@ -38,7 +38,7 @@ void main() {
   });
 
   test('toJson/fromJson round trip preserves all fields', () {
-    const settings = AppSettings(
+    final settings = AppSettings(
       displayName: 'Alex',
       themeMode: ThemeMode.dark,
       startOfWeek: StartOfWeek.sunday,
@@ -52,12 +52,36 @@ void main() {
   });
 
   test('copyWith only changes the given fields', () {
-    const settings = AppSettings(displayName: 'Alex');
+    final settings = AppSettings(displayName: 'Alex');
 
     final updated = settings.copyWith(themeMode: ThemeMode.light);
 
     expect(updated.displayName, 'Alex');
     expect(updated.themeMode, ThemeMode.light);
     expect(updated.startOfWeek, StartOfWeek.monday);
+  });
+
+  group('updatedAt (Phase 1B)', () {
+    test('old JSON without updatedAt falls back to the legacy sentinel', () {
+      final settings = AppSettings.fromJson({'displayName': 'Alex'});
+
+      expect(settings.updatedAt, DateTime.utc(2000, 1, 1));
+    });
+
+    test('toJson/fromJson round-trips updatedAt exactly', () {
+      final settings = AppSettings(updatedAt: DateTime.utc(2026, 6, 1));
+
+      final restored = AppSettings.fromJson(settings.toJson());
+
+      expect(restored.updatedAt, DateTime.utc(2026, 6, 1));
+    });
+
+    test('copyWith preserves updatedAt by default', () {
+      final settings = AppSettings(updatedAt: DateTime.utc(2026, 6, 1));
+
+      final updated = settings.copyWith(displayName: 'Alex');
+
+      expect(updated.updatedAt, DateTime.utc(2026, 6, 1));
+    });
   });
 }

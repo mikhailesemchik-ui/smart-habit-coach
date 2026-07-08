@@ -3,15 +3,18 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/storage/local_namespace_resolver.dart';
+import '../../../core/time/clock.dart';
 import '../domain/app_settings.dart';
 
 class SettingsStorage {
   static const _settingsBaseKey = 'app_settings';
 
   final LocalNamespaceResolver _namespaceResolver;
+  final Clock _clock;
 
-  SettingsStorage({LocalNamespaceResolver? namespaceResolver})
-    : _namespaceResolver = namespaceResolver ?? const LocalNamespaceResolver();
+  SettingsStorage({LocalNamespaceResolver? namespaceResolver, Clock? clock})
+    : _namespaceResolver = namespaceResolver ?? const LocalNamespaceResolver(),
+      _clock = clock ?? const SystemClock();
 
   /// Returns [AppSettings.defaults] both when there is no saved data and
   /// when no local namespace is currently available — consistent with this
@@ -32,12 +35,26 @@ class SettingsStorage {
     }
   }
 
-  /// Persists [settings]. Throws a [StateError] if no local namespace is
-  /// currently available — the same policy as [HabitStorage.saveHabits]
-  /// and [AdaptiveSuggestionStorage.saveSuggestions], so no user-owned
-  /// write is ever silently dropped. The startup identity gate ensures
-  /// normal app UI (and therefore this call) is never reached before a
-  /// real UID exists.
+  /// **Normal mutation path.** Used by every production settings change
+  /// (theme, display name, start-of-week, ...). Stamps `updatedAt` with
+  /// the injected [Clock] and persists through [saveSettings].
+  Future<AppSettings> updateSettings(AppSettings settings) async {
+    final stamped = settings.copyWith(updatedAt: _clock.now());
+    await saveSettings(stamped);
+    return stamped;
+  }
+
+  /// **Raw/bulk persistence path.** Preserves the supplied `updatedAt`
+  /// exactly — never stamps it. Reserved for migration, a future
+  /// cloud-restore path, and tests that need exact timestamps. Production
+  /// mutation call sites must use [updateSettings] instead.
+  ///
+  /// Throws a [StateError] if no local namespace is currently available —
+  /// the same policy as `HabitStorage.upsertHabit` /
+  /// `AdaptiveSuggestionStorage.upsertSuggestion`, so no user-owned write
+  /// is ever silently dropped. The startup identity gate ensures normal
+  /// app UI (and therefore this call) is never reached before a real UID
+  /// exists.
   Future<void> saveSettings(AppSettings settings) async {
     final result = _namespaceResolver.resolveKey(_settingsBaseKey);
     if (!result.isAvailable) {
