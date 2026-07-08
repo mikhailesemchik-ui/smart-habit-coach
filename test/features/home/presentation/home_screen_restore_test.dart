@@ -10,6 +10,10 @@ import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 import 'package:smart_habit_coach/features/navigation/presentation/main_navigation_screen.dart';
 import 'package:smart_habit_coach/features/profile/domain/app_settings.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 class _FakeNotifications extends NotificationService {
   final List<String> scheduled = [];
 
@@ -55,7 +59,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': _encode([
+      _habitsKey: _encode([
         {
           'id': '1',
           'title': 'Yoga',
@@ -80,7 +84,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': _encode([
+      _habitsKey: _encode([
         {
           'id': '1',
           'title': 'Yoga',
@@ -108,7 +112,7 @@ void main() {
     final todayWd = DateTime.now().weekday;
     final notTodayWd = todayWd == 1 ? 7 : 1; // If Mon→Sun; otherwise Mon.
     SharedPreferences.setMockInitialValues({
-      'habits': _encode([
+      _habitsKey: _encode([
         {
           'id': '1',
           'title': 'Yoga',
@@ -144,7 +148,7 @@ void main() {
     );
 
     SharedPreferences.setMockInitialValues({
-      'habits': _encode([habit.toJson()]),
+      _habitsKey: _encode([habit.toJson()]),
     });
 
     await tester.pumpWidget(
@@ -171,7 +175,7 @@ void main() {
     (tester) async {
       // Start with an archived habit.
       SharedPreferences.setMockInitialValues({
-        'habits': _encode([_archivedJson()]),
+        _habitsKey: _encode([_archivedJson()]),
         'onboarding_completed': true,
       });
 
@@ -196,7 +200,7 @@ void main() {
       // This mirrors what HabitDetailsScreen._restoreHabit() + _persistHabit() does.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        'habits',
+        _habitsKey,
         _encode([
           {..._archivedJson(), 'status': 'active'},
         ]),

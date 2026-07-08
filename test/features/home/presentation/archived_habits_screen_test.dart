@@ -8,6 +8,10 @@ import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/archived_habits_screen.dart';
 import 'package:smart_habit_coach/features/home/presentation/habit_details_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 class _FakeNotifications extends NotificationService {
   final List<String> scheduled = [];
   final List<String> cancelled = [];
@@ -57,7 +61,7 @@ void main() {
   // ── Test 20: archived habits list shows archived items only ───────────────
   testWidgets('shows only archived habits, not active ones', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': _habitsJson([
+      _habitsKey: _habitsJson([
         _habitJson(id: '1', title: 'Old walk', status: 'archived'),
         _habitJson(id: '2', title: 'Active run', status: 'active'),
         _habitJson(id: '3', title: 'Old swim', status: 'archived'),
@@ -75,7 +79,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': _habitsJson([
+      _habitsKey: _habitsJson([
         _habitJson(id: '1', title: 'Active run', status: 'active'),
       ]),
     });
@@ -88,7 +92,7 @@ void main() {
   testWidgets('shows empty message when no habits exist at all', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({'habits': jsonEncode([])});
+    SharedPreferences.setMockInitialValues({_habitsKey: jsonEncode([])});
 
     await _pump(tester);
 
@@ -99,7 +103,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': _habitsJson([
+      _habitsKey: _habitsJson([
         _habitJson(id: '1', title: 'Old walk', status: 'archived'),
       ]),
     });
@@ -118,7 +122,7 @@ void main() {
   ) async {
     final fake = _FakeNotifications();
     SharedPreferences.setMockInitialValues({
-      'habits': _habitsJson([
+      _habitsKey: _habitsJson([
         _habitJson(
           id: '1',
           title: 'Old walk',

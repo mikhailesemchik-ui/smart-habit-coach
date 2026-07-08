@@ -89,7 +89,30 @@ class AdaptiveHabitSuggestion {
   /// field existed never have it set.
   final String? habitTitleSnapshot;
 
-  const AdaptiveHabitSuggestion({
+  /// When this suggestion record was last modified.
+  ///
+  /// Defaults to [_legacyTimestamp] for records that predate this field
+  /// (Phase 1A). No mutation path stamps this centrally yet — that begins
+  /// in Phase 1B.
+  final DateTime updatedAt;
+
+  /// Tombstone marker: non-null once this suggestion has been permanently
+  /// deleted. Adding this field does not change any current delete
+  /// behavior. Tombstone semantics are Phase 1C's responsibility.
+  final DateTime? deletedAt;
+
+  /// Deterministic fallback for [updatedAt] on records that predate this
+  /// field. `DateTime` has no const constructor in Dart, so this cannot be
+  /// a compile-time constant; `static final` still gives a single,
+  /// process-lifetime-stable instance, which is all determinism requires
+  /// here. [createdAt] is unaffected — it was already required with no
+  /// default, so its existing semantics are unchanged.
+  static final DateTime _legacyTimestamp = DateTime.utc(2000, 1, 1);
+
+  // Sentinel so copyWith can explicitly clear deletedAt.
+  static const Object _omit = Object();
+
+  AdaptiveHabitSuggestion({
     required this.id,
     required this.habitId,
     required this.type,
@@ -105,7 +128,9 @@ class AdaptiveHabitSuggestion {
     this.originalTargetValue,
     this.originalUnit,
     this.habitTitleSnapshot,
-  });
+    DateTime? updatedAt,
+    this.deletedAt,
+  }) : updatedAt = updatedAt ?? _legacyTimestamp;
 
   AdaptiveHabitSuggestion copyWith({
     AdaptiveSuggestionStatus? status,
@@ -113,6 +138,8 @@ class AdaptiveHabitSuggestion {
     double? proposedTargetValue,
     String? proposedTime,
     List<int>? proposedWeekdays,
+    DateTime? updatedAt,
+    Object? deletedAt = _omit,
   }) {
     return AdaptiveHabitSuggestion(
       id: id,
@@ -130,6 +157,10 @@ class AdaptiveHabitSuggestion {
       originalTargetValue: originalTargetValue,
       originalUnit: originalUnit,
       habitTitleSnapshot: habitTitleSnapshot,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: identical(deletedAt, _omit)
+          ? this.deletedAt
+          : deletedAt as DateTime?,
     );
   }
 
@@ -152,6 +183,8 @@ class AdaptiveHabitSuggestion {
         'originalTargetValue': originalTargetValue,
       if (originalUnit != null) 'originalUnit': originalUnit,
       if (habitTitleSnapshot != null) 'habitTitleSnapshot': habitTitleSnapshot,
+      'updatedAt': updatedAt.toIso8601String(),
+      if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
     };
   }
 
@@ -211,6 +244,16 @@ class AdaptiveHabitSuggestion {
       habitTitleSnapshot: json['habitTitleSnapshot'] is String
           ? json['habitTitleSnapshot'] as String
           : null,
+      updatedAt: _readOptionalTimestamp(json['updatedAt']),
+      deletedAt: _readOptionalTimestamp(json['deletedAt']),
     );
+  }
+
+  /// Parses an optional timestamp field, falling back to `null` for
+  /// missing/malformed values (the constructor substitutes the legacy
+  /// sentinel for [updatedAt] when this returns null).
+  static DateTime? _readOptionalTimestamp(Object? raw) {
+    if (raw is! String) return null;
+    return DateTime.tryParse(raw);
   }
 }

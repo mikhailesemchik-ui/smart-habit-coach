@@ -9,6 +9,10 @@ import 'package:smart_habit_coach/features/coach/domain/adaptive_suggestion.dart
 import 'package:smart_habit_coach/features/home/data/habit_storage.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _suggestionsKey = 'adaptive_suggestions:$testNamespaceUid';
+
 final _now = DateTime(2026, 7, 2);
 final _end = DateTime(2026, 7, 1);
 
@@ -24,7 +28,7 @@ void main() {
   test('malformed stored records are ignored', () async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      'adaptive_suggestions',
+      _suggestionsKey,
       jsonEncode([
         {'id': 'broken'},
         AdaptiveHabitSuggestion(
@@ -98,7 +102,7 @@ void main() {
   test('an old record without a title snapshot still loads', () async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      'adaptive_suggestions',
+      _suggestionsKey,
       jsonEncode([
         {
           'id': 'legacy',

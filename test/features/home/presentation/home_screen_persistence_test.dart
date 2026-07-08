@@ -8,6 +8,10 @@ import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 void main() {
   group('HomeScreen persistence', () {
     testWidgets(
@@ -15,7 +19,7 @@ void main() {
       (tester) async {
         final today = todayKey();
         SharedPreferences.setMockInitialValues({
-          'habits': jsonEncode([
+          _habitsKey: jsonEncode([
             {
               'id': '1',
               'title': 'Drink water',
@@ -80,7 +84,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Read',
@@ -131,7 +135,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Drink water',
@@ -161,7 +165,7 @@ void main() {
   testWidgets('progress card shows ratio-based progress score', (tester) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Drink water',
@@ -188,7 +192,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Read',

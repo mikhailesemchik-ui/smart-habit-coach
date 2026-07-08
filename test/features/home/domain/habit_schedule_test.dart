@@ -20,7 +20,7 @@ void main() {
 
   // Test 2: round-trip serialisation preserves weekdays.
   test('toJson / fromJson round-trip preserves weekdays', () {
-    const habit = Habit(
+    final habit = Habit(
       id: '42',
       title: 'Gym',
       scheduledTime: '07:00 AM',
@@ -68,7 +68,7 @@ void main() {
 
   // Test 5: isScheduledFor reflects ISO weekday correctly.
   group('isScheduledFor', () {
-    const habit = Habit(
+    final habit = Habit(
       id: '1',
       title: 'Gym',
       scheduledTime: '07:00 AM',
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('default weekdays means every day is scheduled', () {
-      const everyday = Habit(
+      final everyday = Habit(
         id: '2',
         title: 'Water',
         scheduledTime: '08:00 AM',

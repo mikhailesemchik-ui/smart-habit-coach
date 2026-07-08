@@ -14,8 +14,13 @@ import 'package:smart_habit_coach/features/progress/domain/ai_weekly_review_sour
 import 'package:smart_habit_coach/features/progress/domain/weekly_review.dart';
 import 'package:smart_habit_coach/features/progress/presentation/weekly_review_sheet.dart';
 
-final _now = DateTime(2026, 7, 2);
-final _end = DateTime(2026, 7, 1);
+// Anchored to the real clock (not a fixed calendar date): the production
+// detector (`detectAdaptiveSuggestion`) always windows off `DateTime.now()`
+// (see WeeklyReviewSheet's `now: DateTime.now()`), so seeded evidence must
+// stay within `_windowDays` of whenever the suite actually runs rather than
+// drifting out of range relative to a hardcoded past date.
+final _now = DateTime.now();
+final _end = _now.subtract(const Duration(days: 1));
 
 List<DateTime> _lastDays(int count) =>
     List.generate(count, (i) => _end.subtract(Duration(days: i)));

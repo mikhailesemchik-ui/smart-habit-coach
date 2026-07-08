@@ -123,7 +123,41 @@ class Habit {
   /// Notes are independent of completion state and never affect statistics.
   final Map<String, String> completionNotes;
 
-  const Habit({
+  /// When this habit record was first created.
+  ///
+  /// Defaults to [_legacyTimestamp] for records that predate this field
+  /// (Phase 1A) — a fixed, documented sentinel rather than [DateTime.now],
+  /// so repeated loads of the same legacy record never produce a changing
+  /// value. Nothing centrally stamps this yet; that begins in Phase 1B.
+  final DateTime createdAt;
+
+  /// When this habit record was last modified.
+  ///
+  /// Same legacy-default behavior as [createdAt]. No mutation path stamps
+  /// this automatically yet — that centralized behavior is Phase 1B's
+  /// responsibility, not this model's.
+  final DateTime updatedAt;
+
+  /// Tombstone marker: non-null once this habit has been permanently
+  /// deleted. Adding this field does not change any current delete
+  /// behavior — permanent delete still removes the record from storage
+  /// exactly as today. Tombstone semantics (keeping deleted records around,
+  /// filtering them from UI) are Phase 1C's responsibility.
+  final DateTime? deletedAt;
+
+  /// Deterministic fallback for [createdAt]/[updatedAt] on records that
+  /// predate these fields. Intentionally not "now" — using a fixed value
+  /// keeps repeated loads of the same legacy JSON idempotent.
+  ///
+  /// `DateTime` has no const constructor in Dart, so this cannot be a
+  /// compile-time constant; `static final` still gives a single,
+  /// process-lifetime-stable instance, which is all determinism requires
+  /// here. This is also why [Habit]'s constructor below is no longer
+  /// `const` (a `const` constructor's default values must themselves be
+  /// compile-time constants).
+  static final DateTime _legacyTimestamp = DateTime.utc(2000, 1, 1);
+
+  Habit({
     required this.id,
     required this.title,
     required this.scheduledTime,
@@ -143,7 +177,11 @@ class Habit {
     this.partialReasons = const {},
     this.partialReasonNotes = const {},
     this.completionNotes = const {},
-  });
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    this.deletedAt,
+  }) : createdAt = createdAt ?? _legacyTimestamp,
+       updatedAt = updatedAt ?? _legacyTimestamp;
 
   bool get isActive => status == HabitStatus.active;
   bool get isQuantitative => trackingType == HabitTrackingType.quantitative;
@@ -437,6 +475,9 @@ class Habit {
     Map<String, HabitPartialReason>? partialReasons,
     Map<String, String>? partialReasonNotes,
     Map<String, String>? completionNotes,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Object? deletedAt = _omit,
   }) {
     return Habit(
       id: id,
@@ -465,6 +506,11 @@ class Habit {
       partialReasons: partialReasons ?? this.partialReasons,
       partialReasonNotes: partialReasonNotes ?? this.partialReasonNotes,
       completionNotes: completionNotes ?? this.completionNotes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: identical(deletedAt, _omit)
+          ? this.deletedAt
+          : deletedAt as DateTime?,
     );
   }
 
@@ -514,6 +560,9 @@ class Habit {
       if (partialReasonNotes.isNotEmpty)
         'partialReasonNotes': partialReasonNotes,
       if (completionNotes.isNotEmpty) 'completionNotes': completionNotes,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
     };
   }
 
@@ -542,7 +591,25 @@ class Habit {
       partialReasons: _readPartialReasons(json['partialReasons'], weekdays),
       partialReasonNotes: _readStringMap(json['partialReasonNotes']),
       completionNotes: _readStringMap(json['completionNotes']),
+      createdAt: _readTimestamp(json['createdAt']),
+      updatedAt: _readTimestamp(json['updatedAt']),
+      deletedAt: _readOptionalTimestamp(json['deletedAt']),
     );
+  }
+
+  /// Parses a required timestamp field, falling back to the deterministic
+  /// legacy sentinel for missing/malformed values rather than throwing or
+  /// using [DateTime.now] (which would make repeated loads non-idempotent).
+  static DateTime _readTimestamp(Object? raw) {
+    if (raw is! String) return _legacyTimestamp;
+    return DateTime.tryParse(raw) ?? _legacyTimestamp;
+  }
+
+  /// Parses an optional timestamp field, falling back to `null` for
+  /// missing/malformed values.
+  static DateTime? _readOptionalTimestamp(Object? raw) {
+    if (raw is! String) return null;
+    return DateTime.tryParse(raw);
   }
 
   static List<int> _readWeekdays(Map<String, dynamic> json) {

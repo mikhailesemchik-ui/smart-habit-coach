@@ -12,7 +12,7 @@ void main() {
   testWidgets('Today screen displays habits and updates progress on toggle', (
     tester,
   ) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     expect(
@@ -33,7 +33,7 @@ void main() {
   testWidgets('Adding a habit updates the list and progress summary', (
     tester,
   ) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(FloatingActionButton));
@@ -59,7 +59,7 @@ void main() {
   testWidgets('Saving with an empty title shows a validation error', (
     tester,
   ) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(FloatingActionButton));
@@ -74,7 +74,7 @@ void main() {
   });
 
   testWidgets('Cancel closes the form without adding a habit', (tester) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(FloatingActionButton));
@@ -89,7 +89,7 @@ void main() {
   });
 
   testWidgets('Tapping a habit opens its details', (tester) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Drink water'));
@@ -101,7 +101,7 @@ void main() {
   });
 
   testWidgets('Editing a habit updates it in the list', (tester) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Drink water'));
@@ -130,7 +130,7 @@ void main() {
   testWidgets('Canceling an edit keeps the original habit unchanged', (
     tester,
   ) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Drink water'));
@@ -159,7 +159,7 @@ void main() {
   testWidgets(
     'Canceling delete keeps the habit; confirming removes it and updates progress',
     (tester) async {
-      await tester.pumpWidget(const SmartHabitCoachApp());
+      await tester.pumpWidget(SmartHabitCoachApp());
       await tester.pumpAndSettle();
 
       // Open details and cancel the delete.

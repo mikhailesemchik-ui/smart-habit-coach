@@ -6,13 +6,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   // Test 12: tapping "Add note" in the overflow popup opens the note sheet
   testWidgets('tapping Add note in popup opens note sheet', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Read',
@@ -42,7 +46,7 @@ void main() {
   testWidgets('saved note preview appears in card subtitle', (tester) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Read',

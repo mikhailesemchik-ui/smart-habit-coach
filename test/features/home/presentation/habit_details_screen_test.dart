@@ -9,6 +9,10 @@ import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/habit_details_screen.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 class _FakeNotifications extends NotificationService {
   final List<String> scheduled = [];
   final List<String> cancelled = [];
@@ -51,7 +55,7 @@ Future<void> _pumpDetails(
   _FakeNotifications? fakeNotifications,
   DateTime? today,
 }) async {
-  SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+  SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
   await tester.pumpWidget(
     MaterialApp(
       home: HabitDetailsScreen(
@@ -190,7 +194,7 @@ void main() {
     tester,
   ) async {
     final habit = _dailyHabit();
-    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(habit: habit, today: DateTime(2026, 1, 15)),
@@ -208,7 +212,7 @@ void main() {
     tester,
   ) async {
     final habit = _dailyHabit();
-    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(habit: habit, today: DateTime(2024, 2, 15)),
@@ -387,7 +391,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     final habit = _dailyHabit();
-    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(habit: habit, today: _today),
@@ -598,7 +602,7 @@ void main() {
       status: HabitStatus.paused,
       pausedFromDate: '2026-06-25',
     );
-    SharedPreferences.setMockInitialValues({'habits': _prefs(paused)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(paused)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(
@@ -640,7 +644,7 @@ void main() {
       status: HabitStatus.archived,
       pausedFromDate: '2026-06-25',
     );
-    SharedPreferences.setMockInitialValues({'habits': _prefs(archived)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(archived)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(
@@ -731,7 +735,7 @@ void main() {
       status: HabitStatus.paused,
       pausedFromDate: '2026-06-25',
     );
-    SharedPreferences.setMockInitialValues({'habits': _prefs(paused)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(paused)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(habit: paused, today: _today),
@@ -780,7 +784,7 @@ void main() {
         unit: 'L',
         quantitativeProgress: const {partialKey: 1.5},
       );
-      SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+      SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
       await tester.pumpWidget(
         MaterialApp(
           home: HabitDetailsScreen(habit: habit, today: _today),
@@ -809,7 +813,7 @@ void main() {
         unit: 'L',
         // Use a date with no progress so partial reason sheet is NOT triggered
       );
-      SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+      SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
       await tester.pumpWidget(
         MaterialApp(
           home: HabitDetailsScreen(habit: habit, today: _today),
@@ -851,7 +855,7 @@ void main() {
       targetValue: 3.0,
       unit: 'L',
     );
-    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(habit: habit, today: _today),
@@ -901,7 +905,7 @@ void main() {
       quantitativeProgress: const {key: 1.5},
       partialReasons: const {key: HabitPartialReason.targetTooDifficult},
     );
-    SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+    SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
     await tester.pumpWidget(
       MaterialApp(
         home: HabitDetailsScreen(habit: habit, today: _today),

@@ -12,6 +12,10 @@ import 'package:smart_habit_coach/features/progress/domain/weekly_review.dart';
 import 'package:smart_habit_coach/features/progress/presentation/progress_screen.dart';
 import 'package:smart_habit_coach/features/progress/presentation/weekly_review_sheet.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 class _FailingAiWeeklyReviewSource implements AiWeeklyReviewSource {
   @override
   Future<AiWeeklyReview> generateReview(WeeklyReviewMetrics metrics) async {
@@ -57,7 +61,7 @@ void main() {
     'completion rate refreshes after toggling a habit in the day sheet',
     (tester) async {
       SharedPreferences.setMockInitialValues({
-        'habits': jsonEncode([
+        _habitsKey: jsonEncode([
           {
             'id': '1',
             'title': 'Run',
@@ -104,7 +108,7 @@ void main() {
   ) async {
     final today = dateKey(DateTime.now());
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Run',
@@ -145,7 +149,7 @@ void main() {
     (tester) async {
       final today = todayKey();
       SharedPreferences.setMockInitialValues({
-        'habits': jsonEncode([
+        _habitsKey: jsonEncode([
           {
             'id': '99',
             'title': 'My persisted habit',

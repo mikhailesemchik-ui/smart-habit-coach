@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -13,7 +17,7 @@ void main() {
   // Test 8 (status): paused habits do not appear in Today.
   testWidgets('paused habits do not appear in Today', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Active habit',
@@ -46,7 +50,7 @@ void main() {
   // Test 9 (status): archived habits do not appear in Today.
   testWidgets('archived habits do not appear in Today', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Active habit',
@@ -84,7 +88,7 @@ void main() {
     final otherWeekday = todayWeekday == 1 ? 2 : 1;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Daily habit',
@@ -119,7 +123,7 @@ void main() {
       final otherWeekday = todayWeekday == 1 ? 2 : 1;
 
       SharedPreferences.setMockInitialValues({
-        'habits': jsonEncode([
+        _habitsKey: jsonEncode([
           {
             'id': '1',
             'title': 'Gym',
@@ -178,7 +182,7 @@ void main() {
   // Test 7: editing a habit pre-selects its existing weekdays.
   testWidgets('edit sheet pre-selects existing weekdays', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Gym',

@@ -7,7 +7,7 @@ void main() {
   testWidgets('First launch shows onboarding', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     expect(find.text('Build better habits'), findsOneWidget);
@@ -19,7 +19,7 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Next'));
@@ -44,7 +44,7 @@ void main() {
   testWidgets('Skip saves state and opens the main app', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Skip'));
@@ -62,7 +62,7 @@ void main() {
   testWidgets('Returning user opens the main app directly', (tester) async {
     SharedPreferences.setMockInitialValues({'onboarding_completed': true});
 
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     expect(find.text('Build better habits'), findsNothing);
@@ -75,7 +75,7 @@ void main() {
   testWidgets('Back button returns to the previous page', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(TextButton, 'Back'), findsNothing);

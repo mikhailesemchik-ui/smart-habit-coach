@@ -5,7 +5,7 @@ import 'package:smart_habit_coach/features/home/domain/habit.dart';
 
 void main() {
   test('toJson/fromJson round trip preserves all fields', () {
-    const habit = Habit(
+    final habit = Habit(
       id: '42',
       title: 'Drink water',
       scheduledTime: '08:00 AM',
@@ -37,7 +37,7 @@ void main() {
   });
 
   test('toggleDate adds today completion and isCompletedToday reflects it', () {
-    const habit = Habit(
+    final habit = Habit(
       id: '1',
       title: 'Drink water',
       scheduledTime: '08:00 AM',
@@ -97,6 +97,115 @@ void main() {
 
       expect(habit.completedDates, isEmpty);
     });
+  });
+
+  group('createdAt / updatedAt / deletedAt (Phase 1A)', () {
+    test(
+      'old JSON without timestamp fields falls back to the deterministic legacy sentinel',
+      () {
+        final json = {
+          'id': '1',
+          'title': 'Legacy',
+          'scheduledTime': '08:00 AM',
+          'iconId': 'water',
+          'completedDates': <String>[],
+        };
+
+        final first = Habit.fromJson(json);
+        final second = Habit.fromJson(json);
+
+        expect(first.createdAt, DateTime.utc(2000, 1, 1));
+        expect(first.updatedAt, DateTime.utc(2000, 1, 1));
+        expect(first.deletedAt, isNull);
+        // Repeated loads of the same legacy record must be idempotent.
+        expect(first.createdAt, second.createdAt);
+      },
+    );
+
+    test('new JSON round-trips createdAt/updatedAt/deletedAt exactly', () {
+      final habit = Habit(
+        id: '1',
+        title: 'Drink water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        createdAt: DateTime.utc(2026, 1, 1),
+        updatedAt: DateTime.utc(2026, 6, 1),
+        deletedAt: DateTime.utc(2026, 6, 15),
+      );
+
+      final restored = Habit.fromJson(habit.toJson());
+
+      expect(restored.createdAt, habit.createdAt);
+      expect(restored.updatedAt, habit.updatedAt);
+      expect(restored.deletedAt, habit.deletedAt);
+    });
+
+    test('malformed timestamp values do not throw and fall back safely', () {
+      final json = {
+        'id': '1',
+        'title': 'Bad timestamps',
+        'scheduledTime': '08:00 AM',
+        'iconId': 'water',
+        'completedDates': <String>[],
+        'createdAt': 12345,
+        'updatedAt': 'not-a-date',
+        'deletedAt': 'also-not-a-date',
+      };
+
+      final habit = Habit.fromJson(json);
+
+      expect(habit.createdAt, DateTime.utc(2000, 1, 1));
+      expect(habit.updatedAt, DateTime.utc(2000, 1, 1));
+      expect(habit.deletedAt, isNull);
+    });
+
+    test('copyWith preserves timestamps by default', () {
+      final habit = Habit(
+        id: '1',
+        title: 'Drink water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        createdAt: DateTime.utc(2026, 1, 1),
+        updatedAt: DateTime.utc(2026, 6, 1),
+      );
+
+      final updated = habit.copyWith(completedDates: {'2026-06-02'});
+
+      expect(updated.createdAt, habit.createdAt);
+      expect(updated.updatedAt, habit.updatedAt);
+    });
+
+    test('copyWith can explicitly clear deletedAt', () {
+      final habit = Habit(
+        id: '1',
+        title: 'Drink water',
+        scheduledTime: '08:00 AM',
+        icon: Icons.local_drink_outlined,
+        deletedAt: DateTime.utc(2026, 6, 15),
+      );
+
+      final restored = habit.copyWith(deletedAt: null);
+
+      expect(restored.deletedAt, isNull);
+    });
+
+    test(
+      'copyWith without touching deletedAt preserves the existing value',
+      () {
+        final deletedAt = DateTime.utc(2026, 6, 15);
+        final habit = Habit(
+          id: '1',
+          title: 'Drink water',
+          scheduledTime: '08:00 AM',
+          icon: Icons.local_drink_outlined,
+          deletedAt: deletedAt,
+        );
+
+        final updated = habit.copyWith(completedDates: {'2026-06-02'});
+
+        expect(updated.deletedAt, deletedAt);
+      },
+    );
   });
 
   group('skip reasons', () {

@@ -6,6 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 Map<String, dynamic> _baseJson({
   String id = '1',
   String title = 'Yoga',
@@ -33,7 +37,7 @@ void main() {
     'habit without minimumVersion toggles directly to full without sheet',
     (tester) async {
       SharedPreferences.setMockInitialValues({
-        'habits': jsonEncode([_baseJson()]),
+        _habitsKey: jsonEncode([_baseJson()]),
       });
 
       await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
@@ -54,7 +58,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_baseJson(minimumVersion: 'Light stretch')]),
+      _habitsKey: jsonEncode([_baseJson(minimumVersion: 'Light stretch')]),
     });
 
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
@@ -73,7 +77,7 @@ void main() {
   testWidgets('habit completed fully shows check_circle icon', (tester) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(minimumVersion: 'Light stretch', completedDates: [today]),
       ]),
     });
@@ -91,7 +95,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(
           minimumVersion: 'Light stretch',
           minimumCompletedDates: [today],
@@ -112,7 +116,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         // minimum state → should NOT count toward progress
         _baseJson(
           id: '1',
@@ -142,7 +146,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(
           minimumVersion: 'Light stretch',
           minimumCompletedDates: [today],
@@ -164,7 +168,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(
           id: '1',
           minimumVersion: 'Light',
@@ -189,7 +193,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(
           id: '1',
           minimumVersion: 'Light',
@@ -212,7 +216,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(id: '1', completedDates: [today]),
         _baseJson(id: '2', title: 'Run'),
       ]),
@@ -232,7 +236,7 @@ void main() {
   ) async {
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(id: '1', completedDates: [today]),
         _baseJson(
           id: '2',
@@ -264,7 +268,7 @@ void main() {
 
     final today = todayKey();
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _baseJson(
           minimumVersion: 'Light stretch',
           minimumCompletedDates: [today],

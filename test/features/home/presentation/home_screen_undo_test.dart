@@ -8,6 +8,10 @@ import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/home_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 class _FakeNotificationService extends NotificationService {
   @override
   Future<void> initialize() async {}
@@ -47,7 +51,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -69,7 +73,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -91,7 +95,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -111,7 +115,7 @@ void main() {
   // Test 20: adding a note shows "Note saved" snackbar
   testWidgets('adding a note shows Note saved snackbar', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -137,7 +141,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -164,7 +168,7 @@ void main() {
   // Test 22: a second action replaces the first undo snackbar
   testWidgets('second action replaces the first undo snackbar', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _binaryHabit,
         {
           'id': '2',
@@ -199,7 +203,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -224,7 +228,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -252,7 +256,7 @@ void main() {
     (tester) async {
       final today = todayKey();
       SharedPreferences.setMockInitialValues({
-        'habits': jsonEncode([
+        _habitsKey: jsonEncode([
           {
             'id': '1',
             'title': 'Water',
@@ -289,7 +293,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Water',
@@ -327,7 +331,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Water',
@@ -366,7 +370,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         {
           'id': '1',
           'title': 'Meditate',
@@ -399,7 +403,7 @@ void main() {
   // widget tests, so we verify the property directly.)
   testWidgets('Undo SnackBar has a 4 s duration', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -420,7 +424,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -438,7 +442,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -461,7 +465,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -487,7 +491,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -512,7 +516,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
 
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());
@@ -533,7 +537,7 @@ void main() {
   // Test 35: A second action replaces the first SnackBar
   testWidgets('second action replaces the first SnackBar', (tester) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _binaryHabit,
         {
           'id': '2',
@@ -568,7 +572,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([
+      _habitsKey: jsonEncode([
         _binaryHabit,
         {
           'id': '2',
@@ -621,7 +625,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      'habits': jsonEncode([_binaryHabit]),
+      _habitsKey: jsonEncode([_binaryHabit]),
     });
 
     await tester.pumpWidget(_homeScreen());

@@ -10,6 +10,10 @@ import 'package:smart_habit_coach/features/home/data/habit_storage.dart';
 import 'package:smart_habit_coach/features/home/domain/date_key.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _suggestionsKey = 'adaptive_suggestions:$testNamespaceUid';
+
 final _now = DateTime(2026, 7, 2);
 final _end = DateTime(2026, 7, 1);
 
@@ -229,7 +233,7 @@ void main() {
     () async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        'adaptive_suggestions',
+        _suggestionsKey,
         jsonEncode([
           {'id': 'broken'}, // missing required fields
           'not even a map',

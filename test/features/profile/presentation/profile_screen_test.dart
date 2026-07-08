@@ -3,13 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/app.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _settingsKey = 'app_settings:$testNamespaceUid';
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({'onboarding_completed': true});
   });
 
   Future<void> openProfileTab(WidgetTester tester) async {
-    await tester.pumpWidget(const SmartHabitCoachApp());
+    await tester.pumpWidget(SmartHabitCoachApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
@@ -18,7 +22,7 @@ void main() {
   testWidgets('Profile screen shows the saved display name', (tester) async {
     SharedPreferences.setMockInitialValues({
       'onboarding_completed': true,
-      'app_settings':
+      _settingsKey:
           '{"displayName": "Jamie", "themeMode": "system", "startOfWeek": "monday"}',
     });
 

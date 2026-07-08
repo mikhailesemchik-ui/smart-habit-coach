@@ -6,6 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/habit_details_screen.dart';
 
+import '../../../support/test_namespace.dart';
+
+const _habitsKey = 'habits:$testNamespaceUid';
+
 final _today = DateTime(2026, 6, 27);
 
 Habit _dailyHabit({String id = '1', String title = 'Walk'}) => Habit(
@@ -18,7 +22,7 @@ Habit _dailyHabit({String id = '1', String title = 'Walk'}) => Habit(
 String _prefs(Habit h) => jsonEncode([h.toJson()]);
 
 Future<void> _pump(WidgetTester tester, Habit habit) async {
-  SharedPreferences.setMockInitialValues({'habits': _prefs(habit)});
+  SharedPreferences.setMockInitialValues({_habitsKey: _prefs(habit)});
   await tester.pumpWidget(
     MaterialApp(
       home: HabitDetailsScreen(habit: habit, today: _today),
