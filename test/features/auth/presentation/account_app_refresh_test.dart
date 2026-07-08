@@ -101,6 +101,9 @@ void main() {
       prefs.getString('app_settings:$testNamespaceUid'),
       contains('Anonymous'),
     );
-    expect(prefs.getString('app_settings:returning-uid'), contains('Returning'));
+    expect(
+      prefs.getString('app_settings:returning-uid'),
+      contains('Returning'),
+    );
   });
 }
