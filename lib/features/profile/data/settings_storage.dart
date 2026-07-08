@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/storage/local_namespace_resolver.dart';
+import '../../../core/sync/sync_metadata_storage.dart';
 import '../../../core/time/clock.dart';
 import '../domain/app_settings.dart';
 
@@ -11,10 +12,15 @@ class SettingsStorage {
 
   final LocalNamespaceResolver _namespaceResolver;
   final Clock _clock;
+  final SyncMetadataStorage _syncMetadataStorage;
 
-  SettingsStorage({LocalNamespaceResolver? namespaceResolver, Clock? clock})
-    : _namespaceResolver = namespaceResolver ?? const LocalNamespaceResolver(),
-      _clock = clock ?? const SystemClock();
+  SettingsStorage({
+    LocalNamespaceResolver? namespaceResolver,
+    Clock? clock,
+    SyncMetadataStorage? syncMetadataStorage,
+  }) : _namespaceResolver = namespaceResolver ?? const LocalNamespaceResolver(),
+       _clock = clock ?? const SystemClock(),
+       _syncMetadataStorage = syncMetadataStorage ?? SyncMetadataStorage();
 
   /// Returns [AppSettings.defaults] both when there is no saved data and
   /// when no local namespace is currently available — consistent with this
@@ -38,7 +44,13 @@ class SettingsStorage {
   /// **Normal mutation path.** Used by every production settings change
   /// (theme, display name, start-of-week, ...). Stamps `updatedAt` with
   /// the injected [Clock] and persists through [saveSettings].
+  ///
+  /// **Dirty-first ordering**: `preferencesDirty` is set *before* the data
+  /// write happens, not after — see `HabitStorage.upsertHabit` for the
+  /// full rationale (a spuriously-set dirty flag is harmless; a persisted
+  /// change with no dirty flag is not recoverable without a full rescan).
   Future<AppSettings> updateSettings(AppSettings settings) async {
+    await _syncMetadataStorage.markPreferencesDirty();
     final stamped = settings.copyWith(updatedAt: _clock.now());
     await saveSettings(stamped);
     return stamped;

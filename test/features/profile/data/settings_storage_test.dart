@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/core/storage/local_namespace_resolver.dart';
+import 'package:smart_habit_coach/core/sync/sync_metadata_storage.dart';
 import 'package:smart_habit_coach/features/profile/data/settings_storage.dart';
 import 'package:smart_habit_coach/features/profile/domain/app_settings.dart';
 
@@ -121,6 +122,10 @@ void main() {
   });
 
   group('SettingsStorage.updateSettings (Phase 1B centralized mutation)', () {
+    tearDown(() {
+      LocalNamespaceResolver.debugUidOverride = testNamespaceUid;
+    });
+
     test(
       'a normal setting change stamps updatedAt via the injected Clock',
       () async {
@@ -177,11 +182,14 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       LocalNamespaceResolver.debugUidOverride = null;
 
-      expect(
-        () => SettingsStorage().updateSettings(AppSettings.defaults),
+      // Dirty-first ordering means the "no UID" check now runs behind
+      // SyncMetadataStorage's own write queue (a later microtask), not
+      // synchronously — the override must not be reset until this
+      // expectation has actually settled.
+      await expectLater(
+        SettingsStorage().updateSettings(AppSettings.defaults),
         throwsStateError,
       );
-      LocalNamespaceResolver.debugUidOverride = testNamespaceUid;
     });
 
     test(
@@ -207,5 +215,29 @@ void main() {
         LocalNamespaceResolver.debugUidOverride = testNamespaceUid;
       },
     );
+  });
+
+  group('SettingsStorage dirty tracking (Phase 1C)', () {
+    test('updateSettings marks preferencesDirty', () async {
+      SharedPreferences.setMockInitialValues({});
+      final syncMetadataStorage = SyncMetadataStorage();
+      final storage = SettingsStorage(syncMetadataStorage: syncMetadataStorage);
+
+      await storage.updateSettings(AppSettings(displayName: 'Jamie'));
+
+      final metadata = await syncMetadataStorage.load();
+      expect(metadata.preferencesDirty, isTrue);
+    });
+
+    test('raw saveSettings does not mark preferencesDirty', () async {
+      SharedPreferences.setMockInitialValues({});
+      final syncMetadataStorage = SyncMetadataStorage();
+      final storage = SettingsStorage(syncMetadataStorage: syncMetadataStorage);
+
+      await storage.saveSettings(AppSettings(displayName: 'Jamie'));
+
+      final metadata = await syncMetadataStorage.load();
+      expect(metadata.preferencesDirty, isFalse);
+    });
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/core/storage/local_namespace_resolver.dart';
+import 'package:smart_habit_coach/core/sync/sync_metadata_storage.dart';
 import 'package:smart_habit_coach/features/coach/data/adaptive_suggestion_storage.dart';
 import 'package:smart_habit_coach/features/coach/domain/adaptive_suggestion.dart';
 
@@ -226,4 +227,89 @@ void main() {
       );
     },
   );
+
+  group('AdaptiveSuggestionStorage.tombstoneSuggestion (Phase 1C)', () {
+    test(
+      'normal load hides a tombstoned suggestion; raw load preserves it',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = AdaptiveSuggestionStorage(
+          clock: FakeClock(DateTime.utc(2026, 1, 1)),
+        );
+        final created = await storage.upsertSuggestion(_suggestion('s1'));
+
+        await storage.tombstoneSuggestion(created);
+
+        final visible = await storage.loadSuggestions();
+        expect(visible, isEmpty);
+        final raw = await storage.loadSuggestionsRaw();
+        expect(raw.single.id, 's1');
+        expect(raw.single.deletedAt, isNotNull);
+      },
+    );
+
+    test(
+      'createdAt is preserved; updatedAt and deletedAt share the same timestamp',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final clock = FakeClock(DateTime.utc(2026, 1, 1));
+        final storage = AdaptiveSuggestionStorage(clock: clock);
+        final created = await storage.upsertSuggestion(_suggestion('s1'));
+
+        clock.value = DateTime.utc(2026, 6, 15);
+        final tombstoned = await storage.tombstoneSuggestion(created);
+
+        expect(tombstoned.createdAt, DateTime.utc(2026, 1, 1));
+        expect(tombstoned.updatedAt, DateTime.utc(2026, 6, 15));
+        expect(tombstoned.deletedAt, DateTime.utc(2026, 6, 15));
+      },
+    );
+
+    test('marks dirtySuggestionIds', () async {
+      SharedPreferences.setMockInitialValues({});
+      final syncMetadataStorage = SyncMetadataStorage();
+      final storage = AdaptiveSuggestionStorage(
+        syncMetadataStorage: syncMetadataStorage,
+      );
+      final created = await storage.upsertSuggestion(_suggestion('s1'));
+
+      await storage.tombstoneSuggestion(created);
+
+      final metadata = await syncMetadataStorage.load();
+      expect(metadata.dirtySuggestionIds, contains('s1'));
+    });
+
+    test(
+      'status-only changes remain visible (not treated as deletion)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = AdaptiveSuggestionStorage();
+        final created = await storage.upsertSuggestion(_suggestion('s1'));
+
+        await storage.upsertSuggestion(
+          created.copyWith(status: AdaptiveSuggestionStatus.applied),
+        );
+
+        final visible = await storage.loadSuggestions();
+        expect(visible.single.status, AdaptiveSuggestionStatus.applied);
+        expect(visible.single.deletedAt, isNull);
+      },
+    );
+
+    test(
+      'tombstoning a suggestion that was never persisted upserts it already deleted',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = AdaptiveSuggestionStorage(
+          clock: FakeClock(DateTime.utc(2026, 1, 1)),
+        );
+
+        final tombstoned = await storage.tombstoneSuggestion(_suggestion('s1'));
+
+        expect(tombstoned.deletedAt, DateTime.utc(2026, 1, 1));
+        final raw = await storage.loadSuggestionsRaw();
+        expect(raw.single.id, 's1');
+      },
+    );
+  });
 }

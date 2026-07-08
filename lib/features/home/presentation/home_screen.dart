@@ -307,18 +307,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openHabitDetails(Habit habit) async {
-    // Ensures storage actually has something to read before
-    // HabitDetailsScreen's own load/persist/delete paths run. This matters
-    // on a fresh install: `_habits` may still be the in-memory-only sample
-    // habits (never yet persisted, since the user hasn't mutated any of
-    // them) — without this flush, HabitDetailsScreen would see an empty
-    // stored collection and its hard-delete path would wipe every other
-    // habit instead of just the one being removed. This is a plain re-save
-    // of the current, already-correct in-memory list (every prior mutation
-    // already went through the centralized upsertHabit path and stamped
-    // correctly), so the raw/bulk saveHabits here does not clobber any
-    // timestamp.
-    await _storage.saveHabits(_habits);
+    // Ensures every *other* currently-displayed habit is safely persisted
+    // before this one might get deleted in HabitDetailsScreen. Deleting
+    // `habit` itself is always safe (tombstoneHabit upserts-then-tombstones
+    // it regardless of prior persistence), but its siblings could still be
+    // in-memory-only sample habits nobody has touched yet — without this,
+    // once raw storage stops being empty (from the delete), loadHabits()
+    // would only return the one now-tombstoned record, and every
+    // never-individually-persisted sibling would appear to vanish.
+    await _storage.ensurePersisted(_habits);
     if (!mounted) return;
     await Navigator.push(
       context,

@@ -320,14 +320,11 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    // Hard delete: physically removes the record via the raw/bulk path.
-    // This is intentionally not routed through upsertHabit — a removed
-    // record has nothing to stamp. Tombstone semantics (soft-delete via
-    // deletedAt) are Phase 1C's responsibility; this path will be replaced
-    // then, not reused as-is.
-    final all = await _storage.loadHabits() ?? [];
-    all.removeWhere((h) => h.id == _habit.id);
-    await _storage.saveHabits(all);
+    // Tombstone delete: the habit is never physically removed. The
+    // storage layer stamps deletedAt/updatedAt, keeps the record in raw
+    // storage, and marks it dirty; normal reads (Home, Progress, Day
+    // History, Archived Habits, etc.) hide it from here on.
+    await _storage.tombstoneHabit(_habit);
     await _notifications.cancelHabitReminder(_habit.id);
     if (mounted) Navigator.of(context).pop();
   }

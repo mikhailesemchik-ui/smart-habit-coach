@@ -48,21 +48,21 @@ Habit _habitWithEvidence({String id = 'h1', bool fillEngagement = true}) {
 
 class _ThrowingStorage extends AdaptiveSuggestionStorage {
   @override
-  Future<List<AdaptiveHabitSuggestion>> loadSuggestions() =>
+  Future<List<AdaptiveHabitSuggestion>> loadSuggestionsRaw() =>
       Future.error(StateError('storage unavailable'));
 
   @override
-  Future<void> saveSuggestions(List<AdaptiveHabitSuggestion> suggestions) =>
+  Future<void> writeSuggestionsRaw(List<AdaptiveHabitSuggestion> suggestions) =>
       Future.error(StateError('storage unavailable'));
 }
 
 class _ThrowingHabitStorage extends HabitStorage {
   @override
-  Future<List<Habit>?> loadHabits() =>
+  Future<List<Habit>?> loadHabitsRaw() =>
       Future.error(StateError('habit storage unavailable'));
 
   @override
-  Future<void> saveHabits(List<Habit> habits) =>
+  Future<void> writeHabitsRaw(List<Habit> habits) =>
       Future.error(StateError('habit storage unavailable'));
 }
 
