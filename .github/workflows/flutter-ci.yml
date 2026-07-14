@@ -1,0 +1,37 @@
+name: Flutter CI
+
+# Runs on every push/PR touching the Flutter app. Deliberately network- and
+# secret-free: no Supabase CLI, no Android signing, no real cloud calls.
+# All auth/sync/cloud tests in this repo run against injected fakes, never
+# a live Supabase project — see docs/testing.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Check for merge-conflict / whitespace issues
+        run: git diff --check
