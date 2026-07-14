@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_habit_coach/core/sync/sync_metadata_storage.dart';
 import 'package:smart_habit_coach/features/home/data/notification_service.dart';
 import 'package:smart_habit_coach/features/home/domain/habit.dart';
 import 'package:smart_habit_coach/features/home/presentation/archived_habits_screen.dart';
@@ -152,5 +153,133 @@ void main() {
     // Habit is no longer archived → list is empty.
     expect(find.text('Old walk'), findsNothing);
     expect(find.text('No archived habits'), findsOneWidget);
+  });
+
+  // ── Direct restore action on the Archived Habits screen ───────────────────
+
+  testWidgets('Restore button moves the habit back to active', (tester) async {
+    final fake = _FakeNotifications();
+    SharedPreferences.setMockInitialValues({
+      _habitsKey: _habitsJson([
+        _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+      ]),
+    });
+
+    await _pump(tester, ns: fake);
+    expect(find.text('Old walk'), findsOneWidget);
+
+    await tester.tap(find.text('Restore'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Old walk'), findsNothing);
+    expect(find.text('No archived habits'), findsOneWidget);
+    expect(fake.scheduled, contains('1'));
+
+    final raw = SharedPreferences.getInstance();
+    final prefs = await raw;
+    final stored = jsonDecode(prefs.getString(_habitsKey)!) as List<dynamic>;
+    final habit = Habit.fromJson(stored.single as Map<String, dynamic>);
+    expect(habit.status, HabitStatus.active);
+  });
+
+  // ── Direct permanent-delete (tombstone) action ─────────────────────────────
+
+  testWidgets('Delete button shows a confirmation dialog', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      _habitsKey: _habitsJson([
+        _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+      ]),
+    });
+
+    await _pump(tester);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete habit'), findsOneWidget);
+    expect(find.textContaining('cannot be undone'), findsOneWidget);
+  });
+
+  testWidgets('Cancel on delete confirmation leaves the habit unchanged', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      _habitsKey: _habitsJson([
+        _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+      ]),
+    });
+
+    await _pump(tester);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Old walk'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Confirming delete tombstones the habit and removes it from the list',
+    (tester) async {
+      final fake = _FakeNotifications();
+      SharedPreferences.setMockInitialValues({
+        _habitsKey: _habitsJson([
+          _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+        ]),
+      });
+
+      await _pump(tester, ns: fake);
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Old walk'), findsNothing);
+      expect(find.text('No archived habits'), findsOneWidget);
+      expect(fake.cancelled, contains('1'));
+
+      final prefs = await SharedPreferences.getInstance();
+      final stored = jsonDecode(prefs.getString(_habitsKey)!) as List<dynamic>;
+      final habit = Habit.fromJson(stored.single as Map<String, dynamic>);
+      // Raw storage still contains the record — it is a tombstone, not a
+      // physical delete.
+      expect(habit.deletedAt, isNotNull);
+      expect(habit.deletedAt, habit.updatedAt);
+    },
+  );
+
+  testWidgets('Restore marks the habit dirty through storage metadata', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      _habitsKey: _habitsJson([
+        _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+      ]),
+    });
+
+    await _pump(tester);
+    await tester.tap(find.text('Restore'));
+    await tester.pumpAndSettle();
+
+    final metadata = await SyncMetadataStorage().load();
+    expect(metadata.dirtyHabitIds, contains('1'));
+  });
+
+  testWidgets('Delete marks the habit dirty through storage metadata', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      _habitsKey: _habitsJson([
+        _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+      ]),
+    });
+
+    await _pump(tester);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete').last);
+    await tester.pumpAndSettle();
+
+    final metadata = await SyncMetadataStorage().load();
+    expect(metadata.dirtyHabitIds, contains('1'));
   });
 }

@@ -16,6 +16,8 @@ class ArchivedHabitsScreen extends StatefulWidget {
 
 class _ArchivedHabitsScreenState extends State<ArchivedHabitsScreen> {
   final HabitStorage _storage = HabitStorage();
+  late final NotificationService _notifications =
+      widget.notificationService ?? NotificationService();
   List<Habit> _archived = [];
   bool _isLoading = true;
 
@@ -50,6 +52,44 @@ class _ArchivedHabitsScreenState extends State<ArchivedHabitsScreen> {
     await _loadArchived();
   }
 
+  Future<void> _restore(Habit habit) async {
+    final restored = habit.asActive();
+    // Centralized mutation path: storage stamps updatedAt and marks the
+    // habit dirty for sync — this screen never touches either directly.
+    await _storage.upsertHabit(restored);
+    await _notifications.scheduleHabitReminder(restored);
+    if (!mounted) return;
+    await _loadArchived();
+  }
+
+  Future<void> _confirmDelete(Habit habit) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete habit'),
+        content: Text('Delete "${habit.title}"? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // Tombstone delete: the storage layer stamps deletedAt/updatedAt from a
+    // single Clock reading, keeps the record in raw storage, and marks it
+    // dirty. The habit is never physically removed.
+    await _storage.tombstoneHabit(habit);
+    await _notifications.cancelHabitReminder(habit.id);
+    if (!mounted) return;
+    await _loadArchived();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -71,6 +111,8 @@ class _ArchivedHabitsScreenState extends State<ArchivedHabitsScreen> {
                 return _ArchivedHabitTile(
                   habit: habit,
                   onTap: () => _openDetails(habit),
+                  onRestore: () => _restore(habit),
+                  onDelete: () => _confirmDelete(habit),
                 );
               },
             ),
@@ -81,8 +123,15 @@ class _ArchivedHabitsScreenState extends State<ArchivedHabitsScreen> {
 class _ArchivedHabitTile extends StatelessWidget {
   final Habit habit;
   final VoidCallback onTap;
+  final VoidCallback onRestore;
+  final VoidCallback onDelete;
 
-  const _ArchivedHabitTile({required this.habit, required this.onTap});
+  const _ArchivedHabitTile({
+    required this.habit,
+    required this.onTap,
+    required this.onRestore,
+    required this.onDelete,
+  });
 
   String _repeatLabel() {
     const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -95,25 +144,59 @@ class _ArchivedHabitTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
-      child: ListTile(
-        onTap: onTap,
-        leading: Icon(habit.icon, color: theme.colorScheme.onSurfaceVariant),
-        title: Text(habit.title),
-        subtitle: Text('${habit.scheduledTime} · ${_repeatLabel()}'),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            'Archived',
-            style: theme.textTheme.labelSmall?.copyWith(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            onTap: onTap,
+            leading: Icon(
+              habit.icon,
               color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+            ),
+            title: Text(habit.title),
+            subtitle: Text('${habit.scheduledTime} · ${_repeatLabel()}'),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.12,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Archived',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
-        ),
+          const Divider(height: 1),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: onRestore,
+                icon: const Icon(Icons.unarchive_outlined, size: 18),
+                label: const Text('Restore'),
+              ),
+              TextButton.icon(
+                onPressed: onDelete,
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: theme.colorScheme.error,
+                ),
+                label: Text(
+                  'Delete',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ],
       ),
     );
   }

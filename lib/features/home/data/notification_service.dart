@@ -25,6 +25,11 @@ int weekdayNotificationId(String habitId, int weekday) {
   return (stableNotificationId(habitId) & 0x0FFFFFFF) << 3 | (weekday - 1);
 }
 
+/// Notification permission state, abstracted away from the underlying
+/// plugin/platform. [unknown] covers platforms where status cannot be
+/// reliably queried (e.g. web) rather than guessing granted or denied.
+enum NotificationPermissionStatus { granted, denied, unknown }
+
 /// Schedules and cancels weekday-aware local reminders for habits.
 /// This wraps `flutter_local_notifications` so it can be swapped or faked
 /// independently of the UI.
@@ -104,6 +109,109 @@ class NotificationService {
         debugPrint('NotificationService.cancelHabitReminder failed: $error');
       }
     }
+  }
+
+  /// Cancels every currently-scheduled reminder, regardless of habit.
+  /// Used by reconciliation (e.g. after an account/UID switch) to clear out
+  /// reminders that may belong to a previously-active identity before
+  /// rescheduling only the current identity's active habits.
+  Future<void> cancelAll() async {
+    try {
+      await _plugin.cancelAll();
+    } catch (error) {
+      debugPrint('NotificationService.cancelAll failed: $error');
+    }
+  }
+
+  /// Queries the current OS-level notification permission status.
+  /// Returns [NotificationPermissionStatus.unknown] on platforms/plugin
+  /// versions where this cannot be reliably queried, rather than guessing.
+  Future<NotificationPermissionStatus> permissionStatus() async {
+    try {
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android != null) {
+        final enabled = await android.areNotificationsEnabled();
+        if (enabled == null) return NotificationPermissionStatus.unknown;
+        return enabled
+            ? NotificationPermissionStatus.granted
+            : NotificationPermissionStatus.denied;
+      }
+
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      if (ios != null) {
+        final options = await ios.checkPermissions();
+        if (options == null) return NotificationPermissionStatus.unknown;
+        return options.isEnabled
+            ? NotificationPermissionStatus.granted
+            : NotificationPermissionStatus.denied;
+      }
+
+      final macos = _plugin
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >();
+      if (macos != null) {
+        final options = await macos.checkPermissions();
+        if (options == null) return NotificationPermissionStatus.unknown;
+        return options.isEnabled
+            ? NotificationPermissionStatus.granted
+            : NotificationPermissionStatus.denied;
+      }
+    } catch (error) {
+      debugPrint('NotificationService.permissionStatus failed: $error');
+    }
+    return NotificationPermissionStatus.unknown;
+  }
+
+  /// Requests notification permission from the user, if the current
+  /// platform supports an explicit request call. Returns whether permission
+  /// was granted; never throws — a plugin/platform error is treated as "not
+  /// granted" rather than surfaced as a raw exception.
+  Future<bool> requestPermission() async {
+    try {
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android != null) {
+        return await android.requestNotificationsPermission() ?? false;
+      }
+
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      if (ios != null) {
+        return await ios.requestPermissions(
+              alert: true,
+              badge: true,
+              sound: true,
+            ) ??
+            false;
+      }
+
+      final macos = _plugin
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >();
+      if (macos != null) {
+        return await macos.requestPermissions(
+              alert: true,
+              badge: true,
+              sound: true,
+            ) ??
+            false;
+      }
+    } catch (error) {
+      debugPrint('NotificationService.requestPermission failed: $error');
+    }
+    return false;
   }
 
   /// Returns the next [tz.TZDateTime] that falls on [weekday] (ISO 1–7) at

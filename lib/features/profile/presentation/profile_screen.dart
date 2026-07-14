@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/account_screen.dart';
+import '../../home/data/notification_service.dart';
 import '../../home/presentation/archived_habits_screen.dart';
 import '../domain/app_settings.dart';
 import 'profile_keys.dart';
@@ -11,6 +12,7 @@ class ProfileScreen extends StatefulWidget {
   final ValueChanged<AppSettings> onSettingsChanged;
   final Future<void> Function()? onIdentityChanged;
   final AuthRepository? accountAuthRepository;
+  final NotificationService? notificationService;
 
   const ProfileScreen({
     super.key,
@@ -18,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onSettingsChanged,
     this.onIdentityChanged,
     this.accountAuthRepository,
+    this.notificationService,
   });
 
   @override
@@ -26,11 +29,35 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _nameController;
+  late final NotificationService _notifications =
+      widget.notificationService ?? NotificationService();
+  NotificationPermissionStatus _permissionStatus =
+      NotificationPermissionStatus.unknown;
+  bool _isRequestingPermission = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.settings.displayName);
+    _loadPermissionStatus();
+  }
+
+  Future<void> _loadPermissionStatus() async {
+    final status = await _notifications.permissionStatus();
+    if (!mounted) return;
+    setState(() => _permissionStatus = status);
+  }
+
+  Future<void> _requestPermission() async {
+    if (_isRequestingPermission) return;
+    setState(() => _isRequestingPermission = true);
+    await _notifications.requestPermission();
+    final status = await _notifications.permissionStatus();
+    if (!mounted) return;
+    setState(() {
+      _permissionStatus = status;
+      _isRequestingPermission = false;
+    });
   }
 
   @override
@@ -144,6 +171,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 24),
           const Divider(),
+          Text('Notifications', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          _buildNotificationStatus(theme),
+          const SizedBox(height: 24),
+          const Divider(),
           ListTile(
             key: profileAccountTileKey,
             contentPadding: EdgeInsets.zero,
@@ -165,6 +197,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNotificationStatus(ThemeData theme) {
+    final (label, copy) = switch (_permissionStatus) {
+      NotificationPermissionStatus.granted => ('Reminders are enabled', null),
+      NotificationPermissionStatus.denied => (
+        'Reminders are turned off',
+        'Habit reminders may not appear. You can try enabling them again.',
+      ),
+      NotificationPermissionStatus.unknown => (
+        'Reminder status unavailable',
+        'We could not check your notification permission on this device.',
+      ),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, key: notificationPermissionStatusKey),
+        if (copy != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            copy,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (_permissionStatus != NotificationPermissionStatus.granted) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: notificationPermissionRequestButtonKey,
+            onPressed: _isRequestingPermission ? null : _requestPermission,
+            child: Text(
+              _isRequestingPermission ? 'Requesting…' : 'Enable reminders',
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

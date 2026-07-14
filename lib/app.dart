@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/storage/legacy_migration_runner.dart';
 import 'core/storage/user_data_schema_migrator.dart';
 import 'features/auth/data/auth_repository.dart';
+import 'features/home/data/notification_reconciliation_service.dart';
 import 'features/navigation/presentation/main_navigation_screen.dart';
 import 'features/onboarding/data/onboarding_storage.dart';
 import 'features/onboarding/presentation/onboarding_screen.dart';
@@ -19,13 +20,18 @@ class SmartHabitCoachApp extends StatefulWidget {
   final AuthSessionGateway authGateway;
   final LocalUserDataSchemaMigrator schemaMigrator;
   final AuthRepository? accountAuthRepository;
+  final NotificationReconciliationService notificationReconciliationService;
 
   SmartHabitCoachApp({
     super.key,
     this.authGateway = const SupabaseAuthSessionGateway(),
     LocalUserDataSchemaMigrator? schemaMigrator,
     this.accountAuthRepository,
-  }) : schemaMigrator = schemaMigrator ?? LocalUserDataSchemaMigrator();
+    NotificationReconciliationService? notificationReconciliationService,
+  }) : schemaMigrator = schemaMigrator ?? LocalUserDataSchemaMigrator(),
+       notificationReconciliationService =
+           notificationReconciliationService ??
+           NotificationReconciliationService();
 
   @override
   State<SmartHabitCoachApp> createState() => _SmartHabitCoachAppState();
@@ -99,6 +105,11 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
     }
 
     _identityGeneration++;
+    // Reconciles reminders for the newly-active identity, canceling
+    // anything scheduled under the previously-active one first — notification
+    // IDs are derived from habit id alone, so two different identities could
+    // otherwise collide or leave stale reminders behind after a switch.
+    await widget.notificationReconciliationService.reconcile();
     await _loadInitialState();
   }
 
