@@ -282,4 +282,22 @@ void main() {
     final metadata = await SyncMetadataStorage().load();
     expect(metadata.dirtyHabitIds, contains('1'));
   });
+
+  testWidgets('duplicate Restore taps only reschedule the reminder once', (
+    tester,
+  ) async {
+    final fake = _FakeNotifications();
+    SharedPreferences.setMockInitialValues({
+      _habitsKey: _habitsJson([
+        _habitJson(id: '1', title: 'Old walk', status: 'archived'),
+      ]),
+    });
+
+    await _pump(tester, ns: fake);
+    await tester.tap(find.text('Restore'));
+    await tester.tap(find.text('Restore'));
+    await tester.pumpAndSettle();
+
+    expect(fake.scheduled.where((id) => id == '1').length, 1);
+  });
 }

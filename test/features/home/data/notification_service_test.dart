@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_habit_coach/features/home/data/notification_service.dart';
 
@@ -57,6 +59,35 @@ void main() {
       for (var w = 1; w <= 7; w++) {
         expect(weekdayNotificationId(habitId, w), isNot(base));
       }
+    });
+  });
+
+  group('initialization noise', () {
+    test('repeated initialize() calls never throw', () async {
+      final service = NotificationService();
+      await service.initialize();
+      await service.initialize();
+      await service.initialize();
+    });
+
+    test('debugSuppressLogging silences failure logging', () async {
+      final previous = NotificationService.debugSuppressLogging;
+      NotificationService.debugSuppressLogging = true;
+      final logs = <String>[];
+      await runZoned(
+        () async {
+          final service = NotificationService();
+          await service.initialize();
+          await service.cancelAll();
+          await service.permissionStatus();
+        },
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) => logs.add(line),
+        ),
+      );
+      NotificationService.debugSuppressLogging = previous;
+
+      expect(logs, isEmpty);
     });
   });
 }

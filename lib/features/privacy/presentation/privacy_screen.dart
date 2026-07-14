@@ -151,10 +151,13 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           ),
           if (_state == _ExportState.error && _failure != null) ...[
             const SizedBox(height: 12),
-            Text(
-              _errorMessage(_failure!),
-              key: exportErrorMessageKey,
-              style: TextStyle(color: theme.colorScheme.error),
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                _errorMessage(_failure!),
+                key: exportErrorMessageKey,
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
             ),
           ],
           if (_state == _ExportState.success && _jsonPreview != null) ...[
@@ -176,11 +179,14 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ],
             ),
             if (_showCopiedMessage)
-              Text(
-                'Copied to clipboard',
-                key: exportCopiedMessageKey,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  'Copied to clipboard',
+                  key: exportCopiedMessageKey,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ),
             const SizedBox(height: 8),

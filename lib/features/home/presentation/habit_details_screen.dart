@@ -778,13 +778,17 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
           ),
         ],
         const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _deleteHabit,
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('Delete habit'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: theme.colorScheme.error,
-            side: BorderSide(color: theme.colorScheme.error),
+        Semantics(
+          label: 'Permanently delete ${_habit.title}',
+          button: true,
+          child: OutlinedButton.icon(
+            onPressed: _deleteHabit,
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Delete habit'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+              side: BorderSide(color: theme.colorScheme.error),
+            ),
           ),
         ),
       ],

@@ -295,8 +295,8 @@ class _StatusCard extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.account_circle_outlined),
-        title: Text(title),
-        subtitle: Text(subtitle),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
         titleTextStyle: theme.textTheme.titleMedium,
       ),
     );
@@ -320,19 +320,22 @@ class _MessageBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: theme.colorScheme.surfaceContainerHighest,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
-        ],
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: theme.colorScheme.surfaceContainerHighest,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text)),
+          ],
+        ),
       ),
     );
   }
@@ -474,36 +477,38 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       title: const Text('Delete account?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'This permanently deletes your account and its cloud data. '
-            'Local data for this account will be removed from this device '
-            'once deletion succeeds. This cannot be undone.',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Export your data first from Privacy & data if you want to '
-            'keep a copy.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This permanently deletes your account and its cloud data. '
+              'Local data for this account will be removed from this device '
+              'once deletion succeeds. This cannot be undone.',
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text('The app will return to a fresh anonymous identity.'),
-          const SizedBox(height: 12),
-          CheckboxListTile(
-            key: deleteAccountConfirmCheckboxKey,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _acknowledged,
-            onChanged: (value) =>
-                setState(() => _acknowledged = value ?? false),
-            title: const Text('I understand this cannot be undone.'),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Export your data first from Privacy & data if you want to '
+              'keep a copy.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text('The app will return to a fresh anonymous identity.'),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              key: deleteAccountConfirmCheckboxKey,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _acknowledged,
+              onChanged: (value) =>
+                  setState(() => _acknowledged = value ?? false),
+              title: const Text('I understand this cannot be undone.'),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

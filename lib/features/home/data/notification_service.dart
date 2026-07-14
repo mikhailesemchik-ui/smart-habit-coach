@@ -38,6 +38,20 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
+  /// Suppresses this class's `debugPrint` diagnostics. Set once for the
+  /// whole suite in `test/flutter_test_config.dart` — widget tests
+  /// routinely construct a real `NotificationService()` with no platform
+  /// channel handler registered, so every plugin call fails and is caught
+  /// here by design; that's expected noise in tests, not a real error, and
+  /// production behavior (the try/catch itself) is unchanged either way.
+  @visibleForTesting
+  static bool debugSuppressLogging = false;
+
+  void _logFailure(String context, Object error) {
+    if (debugSuppressLogging) return;
+    debugPrint('NotificationService.$context failed: $error');
+  }
+
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
@@ -58,7 +72,7 @@ class NotificationService {
           >()
           ?.requestNotificationsPermission();
     } catch (error) {
-      debugPrint('NotificationService.initialize failed: $error');
+      _logFailure('initialize', error);
     }
   }
 
@@ -89,7 +103,7 @@ class NotificationService {
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         );
       } catch (error) {
-        debugPrint('NotificationService.scheduleHabitReminder failed: $error');
+        _logFailure('scheduleHabitReminder', error);
       }
     }
   }
@@ -100,13 +114,13 @@ class NotificationService {
     try {
       await _plugin.cancel(id: stableNotificationId(habitId));
     } catch (error) {
-      debugPrint('NotificationService.cancelHabitReminder failed: $error');
+      _logFailure('cancelHabitReminder', error);
     }
     for (var w = 1; w <= 7; w++) {
       try {
         await _plugin.cancel(id: weekdayNotificationId(habitId, w));
       } catch (error) {
-        debugPrint('NotificationService.cancelHabitReminder failed: $error');
+        _logFailure('cancelHabitReminder', error);
       }
     }
   }
@@ -119,7 +133,7 @@ class NotificationService {
     try {
       await _plugin.cancelAll();
     } catch (error) {
-      debugPrint('NotificationService.cancelAll failed: $error');
+      _logFailure('cancelAll', error);
     }
   }
 
@@ -164,7 +178,7 @@ class NotificationService {
             : NotificationPermissionStatus.denied;
       }
     } catch (error) {
-      debugPrint('NotificationService.permissionStatus failed: $error');
+      _logFailure('permissionStatus', error);
     }
     return NotificationPermissionStatus.unknown;
   }
@@ -209,7 +223,7 @@ class NotificationService {
             false;
       }
     } catch (error) {
-      debugPrint('NotificationService.requestPermission failed: $error');
+      _logFailure('requestPermission', error);
     }
     return false;
   }
