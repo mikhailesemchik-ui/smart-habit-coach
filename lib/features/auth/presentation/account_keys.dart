@@ -19,3 +19,13 @@ const cancelAccountSwitchButtonKey = ValueKey<String>(
 );
 const syncNowButtonKey = ValueKey<String>('syncNowButton');
 const lastSyncedTextKey = ValueKey<String>('lastSyncedText');
+const deleteAccountActionKey = ValueKey<String>('deleteAccountAction');
+const deleteAccountConfirmCheckboxKey = ValueKey<String>(
+  'deleteAccountConfirmCheckbox',
+);
+const deleteAccountConfirmButtonKey = ValueKey<String>(
+  'deleteAccountConfirmButton',
+);
+const deleteAccountCancelButtonKey = ValueKey<String>(
+  'deleteAccountCancelButton',
+);

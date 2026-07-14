@@ -2,16 +2,25 @@ import 'package:flutter/foundation.dart';
 
 import '../../home/data/habit_storage.dart';
 import '../../home/data/notification_service.dart';
+import '../data/account_deletion_service.dart';
 import '../data/auth_repository.dart';
 import '../data/returning_user_sign_in_service.dart';
 import '../data/sign_out_service.dart';
 import '../data/supabase_auth_repository.dart';
+import '../domain/account_deletion_result.dart';
 import '../domain/auth_error.dart';
 import '../domain/auth_identity.dart';
 
 const accountPasswordMinLength = 6;
 
-enum AccountOperation { none, loading, linking, signingIn, signingOut }
+enum AccountOperation {
+  none,
+  loading,
+  linking,
+  signingIn,
+  signingOut,
+  deletingAccount,
+}
 
 class PendingReturningSignIn {
   final String email;
@@ -26,6 +35,8 @@ class AccountState {
   final AuthFailure? failure;
   final String? successMessage;
   final PendingReturningSignIn? pendingSignIn;
+  final AccountDeletionFailure? deletionFailure;
+  final bool deletionPartialFailure;
 
   const AccountState({
     required this.identity,
@@ -33,6 +44,8 @@ class AccountState {
     this.failure,
     this.successMessage,
     this.pendingSignIn,
+    this.deletionFailure,
+    this.deletionPartialFailure = false,
   });
 
   bool get isBusy => operation != AccountOperation.none;
@@ -44,9 +57,12 @@ class AccountState {
     AuthFailure? failure,
     String? successMessage,
     PendingReturningSignIn? pendingSignIn,
+    AccountDeletionFailure? deletionFailure,
+    bool? deletionPartialFailure,
     bool clearFailure = false,
     bool clearSuccess = false,
     bool clearPendingSignIn = false,
+    bool clearDeletionFailure = false,
   }) {
     return AccountState(
       identity: identity ?? this.identity,
@@ -55,6 +71,12 @@ class AccountState {
       successMessage: clearSuccess
           ? null
           : successMessage ?? this.successMessage,
+      deletionFailure: clearDeletionFailure
+          ? null
+          : deletionFailure ?? this.deletionFailure,
+      deletionPartialFailure: clearDeletionFailure
+          ? false
+          : deletionPartialFailure ?? this.deletionPartialFailure,
       pendingSignIn: clearPendingSignIn
           ? null
           : pendingSignIn ?? this.pendingSignIn,
@@ -66,9 +88,11 @@ class AccountController extends ChangeNotifier {
   final AuthRepository _authRepository;
   final ReturningUserSignInService _returningUserSignInService;
   final SignOutService _signOutService;
+  final AccountDeletionService? _injectedDeletionService;
   final HabitStorage _habitStorage;
   final NotificationService _notificationService;
   final Future<void> Function()? _onIdentityChanged;
+  AccountDeletionService? _lazyDeletionService;
 
   AccountState _state = const AccountState(
     identity: AuthIdentity.unauthenticated,
@@ -79,6 +103,7 @@ class AccountController extends ChangeNotifier {
     AuthRepository? authRepository,
     ReturningUserSignInService? returningUserSignInService,
     SignOutService? signOutService,
+    AccountDeletionService? deletionService,
     HabitStorage? habitStorage,
     NotificationService? notificationService,
     Future<void> Function()? onIdentityChanged,
@@ -86,6 +111,7 @@ class AccountController extends ChangeNotifier {
        _habitStorage = habitStorage ?? HabitStorage(),
        _notificationService = notificationService ?? NotificationService(),
        _onIdentityChanged = onIdentityChanged,
+       _injectedDeletionService = deletionService,
        _returningUserSignInService =
            returningUserSignInService ??
            ReturningUserSignInService(
@@ -97,6 +123,20 @@ class AccountController extends ChangeNotifier {
            SignOutService(
              authRepository: authRepository ?? SupabaseAuthRepository(),
            );
+
+  /// Built lazily on first actual use (never in the constructor), mirroring
+  /// `SyncController`'s lazy coordinator — so simply constructing an
+  /// `AccountController` never touches the Supabase client, and screens
+  /// showing account state before any deletion is attempted (or tests with
+  /// no Supabase client at all) never crash just because this controller
+  /// exists on screen.
+  AccountDeletionService get _deletionService =>
+      _injectedDeletionService ??
+      (_lazyDeletionService ??= AccountDeletionService(
+        authRepository: _authRepository,
+        habitStorage: _habitStorage,
+        notificationService: _notificationService,
+      ));
 
   AccountState get state => _state;
 
@@ -220,6 +260,57 @@ class AccountController extends ChangeNotifier {
     );
   }
 
+  /// Permanently deletes the current email-backed account, both remotely
+  /// and locally, and returns to a fresh anonymous identity. Never called
+  /// for an anonymous identity — [AccountDeletionService] rejects that
+  /// defensively, but the UI never offers this action to anonymous users
+  /// in the first place.
+  Future<void> deleteAccount() async {
+    if (_state.isBusy) return;
+    _emit(
+      _state.copyWith(
+        operation: AccountOperation.deletingAccount,
+        clearFailure: true,
+        clearSuccess: true,
+        clearDeletionFailure: true,
+      ),
+    );
+
+    final result = await _deletionService.deleteAccount();
+
+    if (result.isSuccess) {
+      await _onIdentityChanged?.call();
+      _emit(
+        _state.copyWith(
+          identity: result.newIdentity!,
+          operation: AccountOperation.none,
+          clearFailure: true,
+          clearDeletionFailure: true,
+          successMessage:
+              'Account deleted. A fresh anonymous identity is active.',
+        ),
+      );
+      return;
+    }
+
+    final newIdentity = result.newIdentity;
+    if (newIdentity != null) {
+      // The identity moved forward (a fresh anonymous session was
+      // established) even though some other step of deletion failed —
+      // refresh the app to that identity so no deleted-account data stays
+      // visible, while still surfacing the partial failure.
+      await _onIdentityChanged?.call();
+    }
+    _emit(
+      _state.copyWith(
+        identity: newIdentity ?? _state.identity,
+        operation: AccountOperation.none,
+        deletionFailure: result.failure,
+        deletionPartialFailure: result.partialFailure,
+      ),
+    );
+  }
+
   Future<void> _attemptReturningSignIn({
     required String email,
     required String password,
@@ -303,6 +394,34 @@ String authFailureMessage(AuthFailure failure) {
     AuthErrorCode.identityChangedUnexpectedly =>
       'For safety, the account change was stopped because the identity changed unexpectedly.',
     AuthErrorCode.unknown => 'Something went wrong. Please try again.',
+  };
+}
+
+String accountDeletionFailureMessage(AccountDeletionFailure failure) {
+  return switch (failure.code) {
+    AccountDeletionFailureCode.anonymousNotAllowed =>
+      'Anonymous accounts cannot be deleted this way.',
+    AccountDeletionFailureCode.unauthenticated =>
+      'Your session is not ready. Please retry from startup.',
+    AccountDeletionFailureCode.networkUnavailable =>
+      'Could not connect. Check your connection and try again.',
+    AccountDeletionFailureCode.permissionDenied =>
+      'Your session is not ready. Please retry from startup.',
+    AccountDeletionFailureCode.functionUnavailable =>
+      'Account deletion is not available right now.',
+    AccountDeletionFailureCode.remoteDeletionFailed =>
+      'Could not delete the account right now. Please try again.',
+    AccountDeletionFailureCode.localCleanupFailed =>
+      'The account was deleted, but some local data could not be cleared '
+          'from this device.',
+    AccountDeletionFailureCode.anonymousReauthFailed =>
+      'The account was deleted, but a fresh identity could not be set up. '
+          'Please retry from startup.',
+    AccountDeletionFailureCode.identityChanged =>
+      'The account was deleted, but the active session changed '
+          'unexpectedly. Please restart the app.',
+    AccountDeletionFailureCode.unknown =>
+      'Something went wrong. Please try again.',
   };
 }
 

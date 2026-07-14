@@ -120,6 +120,14 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 'coach suggestions, and settings, but never your sign-in '
                 'tokens, passwords, or any cloud credentials.',
           ),
+          _Section(
+            title: 'Account deletion',
+            body:
+                'If you have signed in with an email account, you can '
+                'delete your account from the Account screen. This '
+                'permanently removes your account and cloud data. Export '
+                'your data first if you want to keep a copy.',
+          ),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 16),

@@ -138,6 +138,16 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _DeleteAccountDialog(),
+    );
+    if (confirmed == true) {
+      await _controller.deleteAccount();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = _controller.state;
@@ -165,6 +175,15 @@ class _AccountScreenState extends State<AccountScreen> {
                 text: state.successMessage!,
               ),
             ],
+            if (state.deletionFailure != null) ...[
+              const SizedBox(height: 12),
+              _MessageBanner(
+                icon: state.deletionPartialFailure
+                    ? Icons.warning_amber_outlined
+                    : Icons.error_outline,
+                text: accountDeletionFailureMessage(state.deletionFailure!),
+              ),
+            ],
             const SizedBox(height: 16),
             if (state.identity.kind == AuthIdentityKind.unauthenticated)
               _UnauthenticatedSection(onRetry: _controller.load)
@@ -175,6 +194,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 identity: state.identity,
                 isBusy: state.isBusy,
                 onSignOut: _confirmSignOut,
+                onDeleteAccount: _confirmDeleteAccount,
               ),
           ],
           if (!state.identity.isAnonymous &&
@@ -391,15 +411,18 @@ class _LinkedSection extends StatelessWidget {
   final AuthIdentity identity;
   final bool isBusy;
   final VoidCallback onSignOut;
+  final VoidCallback onDeleteAccount;
 
   const _LinkedSection({
     required this.identity,
     required this.isBusy,
     required this.onSignOut,
+    required this.onDeleteAccount,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -413,10 +436,92 @@ class _LinkedSection extends StatelessWidget {
           icon: const Icon(Icons.logout),
           label: const Text('Sign out'),
         ),
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: deleteAccountActionKey,
+          onPressed: isBusy ? null : onDeleteAccount,
+          icon: const Icon(Icons.delete_forever_outlined),
+          label: const Text('Delete account'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.error,
+            side: BorderSide(color: theme.colorScheme.error),
+          ),
+        ),
         if (isBusy) ...[
           const SizedBox(height: 16),
           const Center(child: CircularProgressIndicator()),
         ],
+      ],
+    );
+  }
+}
+
+/// Explicit two-step confirmation for a destructive, irreversible action:
+/// the destructive button stays disabled until the user checks the
+/// acknowledgement box.
+class _DeleteAccountDialog extends StatefulWidget {
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  bool _acknowledged = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Delete account?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'This permanently deletes your account and its cloud data. '
+            'Local data for this account will be removed from this device '
+            'once deletion succeeds. This cannot be undone.',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Export your data first from Privacy & data if you want to '
+            'keep a copy.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text('The app will return to a fresh anonymous identity.'),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            key: deleteAccountConfirmCheckboxKey,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _acknowledged,
+            onChanged: (value) =>
+                setState(() => _acknowledged = value ?? false),
+            title: const Text('I understand this cannot be undone.'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          key: deleteAccountCancelButtonKey,
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: deleteAccountConfirmButtonKey,
+          onPressed: _acknowledged
+              ? () => Navigator.of(context).pop(true)
+              : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+          ),
+          child: const Text('Delete account'),
+        ),
       ],
     );
   }

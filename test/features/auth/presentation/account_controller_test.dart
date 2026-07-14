@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_habit_coach/core/storage/local_namespace_cleanup_service.dart';
 import 'package:smart_habit_coach/core/storage/local_namespace_resolver.dart';
+import 'package:smart_habit_coach/features/auth/data/account_deletion_repository.dart';
+import 'package:smart_habit_coach/features/auth/data/account_deletion_service.dart';
+import 'package:smart_habit_coach/features/auth/domain/account_deletion_result.dart';
 import 'package:smart_habit_coach/features/auth/domain/auth_error.dart';
 import 'package:smart_habit_coach/features/auth/domain/auth_identity.dart';
 import 'package:smart_habit_coach/features/auth/presentation/account_controller.dart';
@@ -16,6 +20,27 @@ const _anonymousIdentity = AuthIdentity(
   uid: testNamespaceUid,
   kind: AuthIdentityKind.anonymous,
 );
+
+const _linkedIdentity = AuthIdentity(
+  uid: testNamespaceUid,
+  kind: AuthIdentityKind.linkedEmail,
+  email: 'jamie@example.com',
+  emailConfirmed: true,
+);
+
+class _FakeDeletionRepository implements AccountDeletionRepository {
+  AccountDeletionCloudResult result = AccountDeletionCloudResult.success();
+
+  @override
+  Future<AccountDeletionCloudResult> deleteAccount() async => result;
+}
+
+class _RecordingCleanupService implements LocalNamespaceCleanupService {
+  final wipedUids = <String>[];
+
+  @override
+  Future<void> wipeNamespace(String uid) async => wipedUids.add(uid);
+}
 
 class _FakeNotificationService extends NotificationService {
   final cancelledHabitIds = <String>[];
@@ -366,6 +391,135 @@ void main() {
       await controller.signOut();
 
       expect(controller.state.failure!.code, AuthErrorCode.networkUnavailable);
+    });
+  });
+
+  group('AccountController.deleteAccount', () {
+    test('success returns to a fresh anonymous identity', () async {
+      final authRepository = FakeAuthRepository(
+        initialIdentity: _linkedIdentity,
+        anonymousUid: 'fresh-anon-uid',
+      );
+      final cleanup = _RecordingCleanupService();
+      var identityChangedCalls = 0;
+      final controller = AccountController(
+        authRepository: authRepository,
+        deletionService: AccountDeletionService(
+          authRepository: authRepository,
+          deletionRepository: _FakeDeletionRepository(),
+          cleanupService: cleanup,
+          notificationService: _FakeNotificationService(),
+        ),
+        onIdentityChanged: () async {
+          identityChangedCalls++;
+        },
+      );
+      await controller.load();
+
+      await controller.deleteAccount();
+
+      expect(controller.state.identity.uid, 'fresh-anon-uid');
+      expect(controller.state.identity.kind, AuthIdentityKind.anonymous);
+      expect(controller.state.deletionFailure, isNull);
+      expect(controller.state.successMessage, isNotNull);
+      expect(identityChangedCalls, 1);
+      expect(cleanup.wipedUids, [testNamespaceUid]);
+    });
+
+    test(
+      'remote failure shows a friendly error and keeps the account',
+      () async {
+        final authRepository = FakeAuthRepository(
+          initialIdentity: _linkedIdentity,
+        );
+        final controller = AccountController(
+          authRepository: authRepository,
+          deletionService: AccountDeletionService(
+            authRepository: authRepository,
+            deletionRepository: _FakeDeletionRepository()
+              ..result = AccountDeletionCloudResult.failure(
+                const AccountDeletionCloudFailure(
+                  AccountDeletionCloudErrorCode.networkUnavailable,
+                  'raw',
+                ),
+              ),
+            cleanupService: _RecordingCleanupService(),
+            notificationService: _FakeNotificationService(),
+          ),
+        );
+        await controller.load();
+
+        await controller.deleteAccount();
+
+        expect(controller.state.identity.uid, testNamespaceUid);
+        expect(controller.state.identity.kind, AuthIdentityKind.linkedEmail);
+        expect(
+          controller.state.deletionFailure!.code,
+          AccountDeletionFailureCode.networkUnavailable,
+        );
+        expect(controller.state.deletionPartialFailure, isFalse);
+        expect(
+          accountDeletionFailureMessage(controller.state.deletionFailure!),
+          isNot(contains('raw')),
+        );
+      },
+    );
+
+    test(
+      'partial failure is shown safely without raw exception text',
+      () async {
+        final authRepository = FakeAuthRepository(
+          initialIdentity: _linkedIdentity,
+          anonymousSessionSucceeds: false,
+        );
+        final controller = AccountController(
+          authRepository: authRepository,
+          deletionService: AccountDeletionService(
+            authRepository: authRepository,
+            deletionRepository: _FakeDeletionRepository(),
+            cleanupService: _RecordingCleanupService(),
+            notificationService: _FakeNotificationService(),
+          ),
+        );
+        await controller.load();
+
+        await controller.deleteAccount();
+
+        expect(controller.state.deletionPartialFailure, isTrue);
+        expect(
+          controller.state.deletionFailure!.code,
+          AccountDeletionFailureCode.anonymousReauthFailed,
+        );
+        final message = accountDeletionFailureMessage(
+          controller.state.deletionFailure!,
+        );
+        expect(message, isNot(contains('Exception')));
+        expect(message, isNot(contains('StackTrace')));
+      },
+    );
+
+    test('duplicate calls while deleting are ignored', () async {
+      final authRepository = FakeAuthRepository(
+        initialIdentity: _linkedIdentity,
+        anonymousUid: 'fresh-anon-uid',
+      );
+      final deletionRepository = _FakeDeletionRepository();
+      final controller = AccountController(
+        authRepository: authRepository,
+        deletionService: AccountDeletionService(
+          authRepository: authRepository,
+          deletionRepository: deletionRepository,
+          cleanupService: _RecordingCleanupService(),
+          notificationService: _FakeNotificationService(),
+        ),
+      );
+      await controller.load();
+
+      final first = controller.deleteAccount();
+      final second = controller.deleteAccount();
+      await Future.wait([first, second]);
+
+      expect(controller.state.identity.uid, 'fresh-anon-uid');
     });
   });
 
