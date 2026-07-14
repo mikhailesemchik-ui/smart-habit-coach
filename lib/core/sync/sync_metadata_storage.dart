@@ -103,11 +103,50 @@ class SyncMetadataStorage {
   }
 
   /// Records that a sync attempt just started, using the injected [Clock].
-  /// Not used by anything in Phase 1C (no sync exists yet) — exposed for
-  /// the future sync engine to call.
   Future<SyncMetadata> recordSyncAttempt() {
     return _update(
       (current) => current.copyWith(lastSyncAttemptAt: _clock.now()),
+    );
+  }
+
+  /// Removes [habitId] from the dirty set, if present. Idempotent. Callers
+  /// (the sync coordinator) are responsible for first confirming the
+  /// locally stored record still matches the version that was
+  /// acknowledged remotely — this method only performs the removal itself.
+  Future<SyncMetadata> clearHabitDirty(String habitId) {
+    return _update((current) {
+      final updated = {...current.dirtyHabitIds}..remove(habitId);
+      return current.copyWith(dirtyHabitIds: updated);
+    });
+  }
+
+  /// Removes [suggestionId] from the dirty set, if present. Idempotent.
+  Future<SyncMetadata> clearSuggestionDirty(String suggestionId) {
+    return _update((current) {
+      final updated = {...current.dirtySuggestionIds}..remove(suggestionId);
+      return current.copyWith(dirtySuggestionIds: updated);
+    });
+  }
+
+  /// Clears the `preferencesDirty` flag. Idempotent.
+  Future<SyncMetadata> clearPreferencesDirty() {
+    return _update((current) => current.copyWith(preferencesDirty: false));
+  }
+
+  /// Records the outcome of a completed sync attempt: [successAt] (when the
+  /// sync fully succeeded — omit on failure/partial results, in which case
+  /// the previous [SyncMetadata.lastSuccessfulSyncAt] is preserved
+  /// unchanged) and [errorCode] (a stable [SyncFailureCode] name, or `null`
+  /// to clear a previously recorded error on full success).
+  Future<SyncMetadata> recordSyncResult({
+    DateTime? successAt,
+    String? errorCode,
+  }) {
+    return _update(
+      (current) => current.copyWith(
+        lastSuccessfulSyncAt: successAt ?? current.lastSuccessfulSyncAt,
+        lastSyncErrorCode: errorCode,
+      ),
     );
   }
 }

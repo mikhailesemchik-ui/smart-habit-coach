@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_habit_coach/core/storage/local_namespace_resolver.dart';
+import 'package:smart_habit_coach/core/sync/sync_metadata.dart';
 import 'package:smart_habit_coach/core/sync/sync_metadata_storage.dart';
 
 import '../../support/test_namespace.dart';
@@ -133,6 +134,70 @@ void main() {
         final loaded = await storage.markHabitDirty('h2');
 
         expect(loaded.dirtyHabitIds, {'h2'});
+      },
+    );
+
+    test('clearHabitDirty removes only the given id', () async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = SyncMetadataStorage();
+      await storage.markHabitDirty('h1');
+      await storage.markHabitDirty('h2');
+
+      final result = await storage.clearHabitDirty('h1');
+
+      expect(result.dirtyHabitIds, {'h2'});
+    });
+
+    test('clearSuggestionDirty removes only the given id', () async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = SyncMetadataStorage();
+      await storage.markSuggestionDirty('s1');
+      await storage.markSuggestionDirty('s2');
+
+      final result = await storage.clearSuggestionDirty('s1');
+
+      expect(result.dirtySuggestionIds, {'s2'});
+    });
+
+    test('clearPreferencesDirty clears the flag', () async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = SyncMetadataStorage();
+      await storage.markPreferencesDirty();
+
+      final result = await storage.clearPreferencesDirty();
+
+      expect(result.preferencesDirty, isFalse);
+    });
+
+    test('recordSyncResult sets lastSuccessfulSyncAt and clears the error code '
+        'on success', () async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = SyncMetadataStorage();
+      await storage.save(
+        const SyncMetadata(lastSyncErrorCode: 'networkUnavailable'),
+      );
+      final now = DateTime.utc(2026, 1, 1);
+
+      final result = await storage.recordSyncResult(successAt: now);
+
+      expect(result.lastSuccessfulSyncAt, now);
+      expect(result.lastSyncErrorCode, isNull);
+    });
+
+    test(
+      'recordSyncResult on failure preserves the previous successful time',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final storage = SyncMetadataStorage();
+        final previous = DateTime.utc(2025, 12, 1);
+        await storage.recordSyncResult(successAt: previous);
+
+        final result = await storage.recordSyncResult(
+          errorCode: 'networkUnavailable',
+        );
+
+        expect(result.lastSuccessfulSyncAt, previous);
+        expect(result.lastSyncErrorCode, 'networkUnavailable');
       },
     );
   });

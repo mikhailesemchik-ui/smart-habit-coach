@@ -17,3 +17,5 @@ const preserveAndSignInButtonKey = ValueKey<String>('preserveAndSignInButton');
 const cancelAccountSwitchButtonKey = ValueKey<String>(
   'cancelAccountSwitchButton',
 );
+const syncNowButtonKey = ValueKey<String>('syncNowButton');
+const lastSyncedTextKey = ValueKey<String>('lastSyncedText');

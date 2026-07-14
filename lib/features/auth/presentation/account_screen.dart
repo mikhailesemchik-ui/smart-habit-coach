@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../sync/presentation/sync_controller.dart';
 import '../data/auth_repository.dart';
 import '../data/returning_user_sign_in_service.dart';
 import '../data/sign_out_service.dart';
@@ -13,6 +14,7 @@ class AccountScreen extends StatefulWidget {
   final SignOutService? signOutService;
   final Future<void> Function()? onIdentityChanged;
   final AccountController? controller;
+  final SyncController? syncController;
 
   const AccountScreen({
     super.key,
@@ -21,6 +23,7 @@ class AccountScreen extends StatefulWidget {
     this.signOutService,
     this.onIdentityChanged,
     this.controller,
+    this.syncController,
   });
 
   @override
@@ -30,6 +33,8 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   late final AccountController _controller;
   late final bool _ownsController;
+  late final SyncController _syncController;
+  late final bool _ownsSyncController;
 
   @override
   void initState() {
@@ -45,12 +50,19 @@ class _AccountScreenState extends State<AccountScreen> {
         );
     _controller.addListener(_onControllerChanged);
     _controller.load();
+
+    _ownsSyncController = widget.syncController == null;
+    _syncController = widget.syncController ?? SyncController();
+    _syncController.addListener(_onControllerChanged);
+    _syncController.loadStatus();
   }
 
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
     if (_ownsController) _controller.dispose();
+    _syncController.removeListener(_onControllerChanged);
+    if (_ownsSyncController) _syncController.dispose();
     super.dispose();
   }
 
@@ -129,7 +141,6 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     final state = _controller.state;
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Account')),
@@ -166,15 +177,71 @@ class _AccountScreenState extends State<AccountScreen> {
                 onSignOut: _confirmSignOut,
               ),
           ],
-          const SizedBox(height: 8),
-          Text(
-            'Account features are local-first. Sync is not enabled yet.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
+          if (!state.identity.isAnonymous &&
+              state.identity.kind != AuthIdentityKind.unauthenticated) ...[
+            const SizedBox(height: 24),
+            const Divider(),
+            _SyncSection(controller: _syncController),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _SyncSection extends StatelessWidget {
+  final SyncController controller;
+
+  const _SyncSection({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = controller.state;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Sync', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Text(
+          state.lastSuccessfulSyncAt != null
+              ? 'Last synced: ${state.lastSuccessfulSyncAt}'
+              : 'Never synced on this device.',
+          key: lastSyncedTextKey,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (state.lastFailure != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _MessageBanner(
+              icon: Icons.error_outline,
+              text: syncFailureMessage(state.lastFailure!),
+            ),
+          )
+        else if (state.lastSummary != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _MessageBanner(
+              icon: Icons.check_circle_outline,
+              text: syncSummaryMessage(state.lastSummary!),
+            ),
+          ),
+        FilledButton.icon(
+          key: syncNowButtonKey,
+          onPressed: state.isSyncing ? null : controller.syncNow,
+          icon: state.isSyncing
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.sync),
+          label: Text(state.isSyncing ? 'Syncing…' : 'Sync now'),
+        ),
+      ],
     );
   }
 }
