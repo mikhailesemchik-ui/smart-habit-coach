@@ -4,6 +4,7 @@ import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/account_screen.dart';
 import '../../home/data/notification_service.dart';
 import '../../home/presentation/archived_habits_screen.dart';
+import '../../privacy/presentation/privacy_screen.dart';
 import '../domain/app_settings.dart';
 import 'profile_keys.dart';
 
@@ -193,6 +194,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ArchivedHabitsScreen()),
+            ),
+          ),
+          ListTile(
+            key: profilePrivacyTileKey,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacy & data'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PrivacyScreen()),
             ),
           ),
         ],
