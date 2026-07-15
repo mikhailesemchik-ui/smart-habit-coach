@@ -87,14 +87,25 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _undoToken++;
     final token = _undoToken;
+    final theme = Theme.of(context);
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     final controller = messenger.showSnackBar(
       SnackBar(
         content: Row(
           children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 18,
+              color: theme.colorScheme.surface,
+            ),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(message)),
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.primaryContainer,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               onPressed: () {
                 _undo();
                 if (mounted) {
@@ -395,27 +406,37 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(
               'Today',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: 2),
             Text(
               _formatToday(),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.lg),
             _ProgressCard(
               completeCount: completeCount,
               partialCount: partialCount,
               totalCount: scheduledToday.length,
               score: progressScore,
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             _CreateWithAiCta(onTap: _openAiHabitSetup),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.lg),
+            if (scheduledToday.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Text(
+                  "Today's habits",
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             if (_habits.isNotEmpty && scheduledToday.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -430,7 +451,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             for (final habit in scheduledToday)
               Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: _HabitCard(
                   habit: habit,
                   onToggle: habit.isQuantitative
@@ -455,7 +476,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddHabitSheet,
-        child: const Icon(Icons.add),
+        elevation: 0.5,
+        highlightElevation: 1,
+        child: const Icon(Icons.add, size: 20),
       ),
     );
   }
@@ -472,7 +495,7 @@ class _CreateWithAiCta extends StatelessWidget {
     final cs = theme.colorScheme;
 
     return Material(
-      color: cs.primary,
+      color: cs.primaryContainer,
       borderRadius: AppRadii.largeRadius,
       child: InkWell(
         onTap: onTap,
@@ -480,22 +503,22 @@ class _CreateWithAiCta extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
+            vertical: AppSpacing.sm,
           ),
           child: Row(
             children: [
-              Icon(Icons.auto_awesome, color: cs.onPrimary),
+              Icon(Icons.auto_awesome, size: 20, color: cs.primary),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   'Create with AI',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: cs.onPrimary,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: cs.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: cs.onPrimary),
+              Icon(Icons.arrow_forward_ios, size: 14, color: cs.primary),
             ],
           ),
         ),
@@ -530,53 +553,136 @@ class _ProgressCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: AppRadii.largeRadius,
       ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
+          _AnimatedProgressRing(value: score),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   "Today's progress",
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              Text(
-                '$percentage%',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+                if (score > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '$percentage% progress score',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          ClipRRect(
-            borderRadius: AppRadii.smallRadius,
-            child: LinearProgressIndicator(
-              value: score,
-              minHeight: 8,
+        ],
+      ),
+    );
+  }
+}
+
+/// Small circular progress ring with a centered percentage label. Shows
+/// [value] immediately on first build (no animation on mount/reload), and
+/// smoothly animates between values only when [value] actually changes —
+/// driven by a manually-managed [AnimationController] rather than
+/// [TweenAnimationBuilder], since the latter restarts its internal ticker
+/// on every rebuild (each build creates a new, non-equal Tween instance),
+/// not just on real value changes.
+class _AnimatedProgressRing extends StatefulWidget {
+  final double value;
+
+  const _AnimatedProgressRing({required this.value});
+
+  @override
+  State<_AnimatedProgressRing> createState() => _AnimatedProgressRingState();
+}
+
+class _AnimatedProgressRingState extends State<_AnimatedProgressRing>
+    with TickerProviderStateMixin {
+  late double _displayedValue = widget.value;
+  AnimationController? _controller;
+
+  @override
+  void didUpdateWidget(covariant _AnimatedProgressRing oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _animateTo(widget.value);
+    }
+  }
+
+  void _animateTo(double target) {
+    final from = _displayedValue;
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    final curved = CurvedAnimation(parent: controller, curve: Curves.easeOut);
+    final tween = Tween<double>(begin: from, end: target);
+    controller.addListener(() {
+      if (!mounted) return;
+      setState(() => _displayedValue = tween.evaluate(curved));
+    });
+    _controller?.dispose();
+    _controller = controller;
+    // Deferred to the next frame so this ticker's start doesn't coincide
+    // with the same frame as any other animation triggered by the same
+    // user action (e.g. a SnackBar's own entrance animation) — keeping
+    // this purely-decorative ring animation from perturbing unrelated
+    // frame-timing-sensitive behavior elsewhere on the screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _controller == controller) controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percentage = (_displayedValue * 100).round();
+
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: CircularProgressIndicator(
+              value: _displayedValue,
+              strokeWidth: 5,
               backgroundColor: theme.colorScheme.surface,
+              color: theme.colorScheme.primary,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(label, style: theme.textTheme.bodyMedium),
-          if (score > 0) ...[
-            const SizedBox(height: 2),
-            Text(
-              '$percentage% progress score',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+          Text(
+            '$percentage%',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -615,14 +721,14 @@ class _HabitCard extends StatelessWidget {
     final note = habit.noteFor(today);
 
     final icon = switch (status) {
-      HabitCompletionStatus.full => Icons.check_circle,
+      HabitCompletionStatus.full => Icons.circle,
       HabitCompletionStatus.minimum => Icons.adjust,
       HabitCompletionStatus.none => Icons.radio_button_unchecked,
     };
     final iconColor = switch (status) {
       HabitCompletionStatus.full => theme.colorScheme.primary,
       HabitCompletionStatus.minimum => theme.colorScheme.tertiary,
-      HabitCompletionStatus.none => null,
+      HabitCompletionStatus.none => theme.colorScheme.outline,
     };
     final reason = habit.skipReasonFor(today);
     final reasonLabel = reason == null ? null : habitSkipReasonLabel(reason);
@@ -660,7 +766,11 @@ class _HabitCard extends StatelessWidget {
             ],
           ),
           IconButton(
-            icon: Icon(icon, color: iconColor),
+            icon: _StatusDot(
+              icon: icon,
+              color: iconColor,
+              ringed: status != HabitCompletionStatus.none,
+            ),
             onPressed: onToggle,
           ),
         ],
@@ -739,22 +849,28 @@ class _HabitCard extends StatelessWidget {
           ),
           IconButton(
             tooltip: isComplete ? 'Update progress' : 'Log progress',
-            icon: Icon(
-              isComplete ? Icons.check_circle : Icons.add_circle_outline,
-              color: isComplete ? cs.primary : null,
+            icon: _StatusDot(
+              icon: isComplete ? Icons.circle : Icons.add_circle_outline,
+              color: isComplete ? cs.primary : cs.outline,
+              ringed: isComplete,
             ),
             onPressed: onToggle,
           ),
         ],
       ),
       footer: Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.sm),
+        padding: const EdgeInsets.only(
+          top: AppSpacing.sm,
+          left: 42,
+          right: AppSpacing.xs,
+        ),
         child: ClipRRect(
-          borderRadius: AppRadii.smallRadius,
+          borderRadius: AppRadii.pillRadius,
           child: LinearProgressIndicator(
             value: ratio,
-            minHeight: 6,
+            minHeight: 5,
             backgroundColor: cs.surfaceContainerHighest,
+            color: cs.primary.withValues(alpha: 0.55),
           ),
         ),
       ),
@@ -796,7 +912,10 @@ class _HabitCardShell extends StatelessWidget {
         onTap: onTap,
         borderRadius: AppRadii.largeRadius,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -804,7 +923,7 @@ class _HabitCardShell extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   leading,
-                  const SizedBox(width: AppSpacing.md),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,7 +931,9 @@ class _HabitCardShell extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: theme.textTheme.titleMedium?.copyWith(
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -850,6 +971,40 @@ class _HabitCardShell extends StatelessWidget {
   }
 }
 
+/// Unified trailing status control: wraps the existing state icon (kept
+/// unchanged so existing `find.byIcon(...)` finders keep working) in a
+/// fixed-size circle, adding a subtle outer ring for "positive" states
+/// (completed / minimum-done) so a filled dot reads as an intentional
+/// status control rather than a flat mark. Not-completed states get no
+/// ring, just the plain icon, keeping the same overall footprint.
+class _StatusDot extends StatelessWidget {
+  final IconData icon;
+  final Color? color;
+  final bool ringed;
+
+  const _StatusDot({
+    required this.icon,
+    required this.color,
+    this.ringed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: ringed
+            ? Border.all(color: color!.withValues(alpha: 0.3), width: 1.5)
+            : null,
+      ),
+      child: Icon(icon, size: 18, color: color),
+    );
+  }
+}
+
 /// Small rounded icon bubble used as the leading element of a habit card.
 class _HabitIconBubble extends StatelessWidget {
   final IconData icon;
@@ -862,15 +1017,15 @@ class _HabitIconBubble extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Container(
-      width: 40,
-      height: 40,
+      width: 34,
+      height: 34,
       decoration: BoxDecoration(
         color: muted ? cs.surfaceContainerHighest : cs.primaryContainer,
         shape: BoxShape.circle,
       ),
       child: Icon(
         icon,
-        size: 20,
+        size: 17,
         color: muted ? cs.onSurfaceVariant : cs.primary,
       ),
     );
