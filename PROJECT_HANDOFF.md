@@ -26,13 +26,15 @@ end of each phase — read it before starting new work, alongside
 | 6 | Privacy screen, local data export | Complete |
 | 7 | Account deletion (Edge Function + client orchestration + local cleanup) | Complete |
 | 8 | Hardening: accessibility semantics, duplicate-submit guards, error-copy audit, test noise fix | Complete |
-| 9 | CI workflow, test/architecture docs, repo-quality cleanup (this phase) | Complete |
-| 10 | Manual / real-device QA | **Not started** |
-| 11 | Release readiness (signing, keystore, store metadata) | **Not started** |
+| 9 | CI workflow, test/architecture docs, repo-quality cleanup | Complete |
+| 10 | Manual / real-device smoke QA (superficial, one device) | Complete — see `docs/manual_qa_phase_10.md` |
+| 11 | Release-signing readiness, final validation, final audit (this phase) | Complete — see `docs/final_release_readiness_phase_11.md` |
 
-Phases 10 and 11 are explicitly out of scope until requested — no signing
-configuration, keystore, store metadata, or device QA checklist exists in
-this repo yet.
+Phase 11 delivered **signing readiness**, not a shippable release: no
+real keystore was created or committed, no signed release build has been
+produced, and no store metadata exists. See
+`docs/final_release_readiness_phase_11.md` §11 for what's still required
+before a Google Play submission.
 
 ## What's implemented
 
@@ -58,9 +60,9 @@ which run the same four steps in order. See `docs/testing.md` for focused
 suites and what the tests do/don't require (no real Supabase project, no
 network, no signing).
 
-Last known full-suite status (end of Phase 9): **1035+ tests passed**,
-`flutter analyze` clean. Re-run locally to confirm current numbers before
-relying on this.
+Last known full-suite status (end of Phase 11): **1035/1035 tests
+passed**, `flutter analyze` clean. Re-run locally to confirm current
+numbers before relying on this.
 
 ## CI
 
@@ -99,15 +101,23 @@ git log -3 --oneline
 Read `AGENTS.md` first, then this file, then inspect only what's relevant
 to the requested task.
 
+## Release signing
+
+Release builds require a local, git-ignored `android/key.properties`
+pointing at a real keystore — see `docs/release_signing.md`. Without it,
+`flutter build apk/appbundle --release` fails fast by design; the release
+build type never falls back to debug signing.
+
 ## Next steps (not started)
 
-- **Phase 10 — manual/device QA**: run through the app on a real Android
-  (and ideally iOS) device; verify notification permission prompts,
-  offline behavior, sync across two devices, and account
-  deletion end-to-end against a real (disposable/test) Supabase project.
-- **Phase 11 — release readiness**: real release signing/keystore
-  (current Android release build uses the debug keystore — do not ship
-  as-is), app bundle build, store metadata.
+Not part of any completed phase; do not start without an explicit
+request:
 
-Neither phase should be started without an explicit request, per the
-approved plan's phase-by-phase discipline.
+- A real release keystore and a signed release build, manually installed
+  and tested on at least one device.
+- Deeper manual/device QA beyond the Phase 10 smoke test: notification
+  permission prompts and long-term delivery, offline/online transitions,
+  multi-device sync, and account deletion end-to-end against a real
+  (disposable/test) Supabase project.
+- iOS device QA (Phase 10 covered Android only).
+- Play Store listing metadata and submission.

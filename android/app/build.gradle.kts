@@ -1,9 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing is read from android/key.properties, which is git-ignored and must
+// never be committed. See docs/release_signing.md for how to create it locally.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+val hasReleaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .all { !keystoreProperties.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.smarthabitcoach.app"
@@ -32,13 +44,42 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
         }
     }
+
+    buildTypes {
+        release {
+            // Uses the real release keystore when android/key.properties is present
+            // (see docs/release_signing.md). Never falls back to debug signing: without
+            // key.properties, `flutter build apk/appbundle --release` fails fast instead
+            // of silently producing a debug-signed, unpublishable release artifact.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                null
+            }
+        }
+    }
+}
+
+if (!hasReleaseSigning) {
+    tasks.matching { it.name.startsWith("assembleRelease") || it.name.startsWith("bundleRelease") }
+        .configureEach {
+            doFirst {
+                throw GradleException(
+                    "Release signing is not configured. Create android/key.properties " +
+                        "(see docs/release_signing.md) before building a release APK/AAB."
+                )
+            }
+        }
 }
 
 dependencies {

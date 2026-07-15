@@ -85,10 +85,21 @@ CLI checks.
 test suite on every push/PR to `main`. It requires no secrets and performs
 no release build.
 
+## Release builds
+
+Release builds require a local, git-ignored Android keystore — see
+`docs/release_signing.md` for how to create one and configure
+`android/key.properties`. Without it, `flutter build apk/appbundle
+--release` fails fast with a clear error rather than falling back to
+debug signing.
+
 ## Project status
 
-Phases 1–9 (local-first foundation, auth, cloud sync, archive/notifications,
-privacy/export, account deletion, hardening/accessibility, and this CI/docs
-phase) are complete. Manual/device QA (Phase 10) and release signing
-(Phase 11) have not been done yet. See `PROJECT_HANDOFF.md` for the full
-phase-by-phase status.
+Phases 1–11 are complete: local-first foundation, auth, cloud sync,
+archive/notifications, privacy/export, account deletion,
+hardening/accessibility, CI/docs, manual smoke QA, and release-signing
+readiness. See `PROJECT_HANDOFF.md` for the full phase-by-phase status
+and `docs/final_release_readiness_phase_11.md` for the final audit —
+**the app is not yet ready for a Google Play submission**: no real
+release build has been signed or manually tested on a device, and Phase
+10 QA was a single superficial smoke test, not exhaustive device QA.

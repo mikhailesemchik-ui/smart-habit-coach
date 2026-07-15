@@ -57,8 +57,20 @@ node_modules/
 .env.*
 *.env
 
+# Android release signing (see docs/release_signing.md) — never commit these
+*.jks
+*.keystore
+key.properties
+android/key.properties
+android/app/key.properties
+
 # Supabase local state
 supabase/.temp/
+
+# Build outputs (defense in depth; /build/ above already covers these)
+*.apk
+*.aab
+*.ipa
 
 # OS files
 Thumbs.db
