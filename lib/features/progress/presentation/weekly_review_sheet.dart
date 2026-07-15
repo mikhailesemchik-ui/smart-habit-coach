@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:smart_habit_coach/features/coach/presentation/adaptive_coach_card.dart';
 
+import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../../coach/data/adaptive_coach_service.dart';
 import '../../coach/domain/adaptive_apply_eligibility.dart';
 import '../../coach/domain/adaptive_suggestion.dart';
@@ -225,13 +227,29 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Weekly Review', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 16),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outline,
+                  borderRadius: AppRadii.pillRadius,
+                ),
+              ),
+            ),
+            Text(
+              'Weekly Review',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
             _buildBody(theme),
           ],
         ),
@@ -322,6 +340,14 @@ class _ReviewSection extends StatelessWidget {
 
   const _ReviewSection({required this.title, required this.items});
 
+  IconData get _icon => switch (title) {
+    'What went well' => Icons.check_circle_outline,
+    'Partial progress' => Icons.trending_up,
+    'Patterns noticed' => Icons.insights_outlined,
+    'Focus for next week' => Icons.flag_outlined,
+    _ => Icons.circle_outlined,
+  };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -330,11 +356,22 @@ class _ReviewSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(_icon, size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
         for (final item in visibleItems) ...[
           Text(item, style: theme.textTheme.bodyMedium),
-          if (item != visibleItems.last) const SizedBox(height: 6),
+          if (item != visibleItems.last) const SizedBox(height: AppSpacing.xs),
         ],
       ],
     );

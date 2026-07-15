@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../data/coach_insights_service.dart';
 import '../domain/adaptive_suggestion.dart';
 import '../domain/adaptive_suggestion_history_copy.dart';
@@ -56,6 +57,21 @@ Color _statusColor(BuildContext context, AdaptiveSuggestionStatus status) {
       return scheme.surfaceContainerHighest;
     case AdaptiveSuggestionStatus.rejected:
       return scheme.surfaceContainerHighest;
+  }
+}
+
+Color _statusForeground(BuildContext context, AdaptiveSuggestionStatus status) {
+  final scheme = Theme.of(context).colorScheme;
+  switch (status) {
+    case AdaptiveSuggestionStatus.pending:
+      return scheme.onSecondaryContainer;
+    case AdaptiveSuggestionStatus.applied:
+      return scheme.onPrimaryContainer;
+    case AdaptiveSuggestionStatus.adjusted:
+      return scheme.onSecondaryContainer;
+    case AdaptiveSuggestionStatus.kept:
+    case AdaptiveSuggestionStatus.rejected:
+      return scheme.onSurfaceVariant;
   }
 }
 
@@ -139,9 +155,11 @@ class _CoachInsightsScreenState extends State<CoachInsightsScreen> {
         for (final group in _groups) ...[
           Text(
             _statusGroupTitle(group.status),
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           for (final suggestion in group.suggestions) ...[
             _CoachInsightCard(
               suggestion: suggestion,
@@ -173,19 +191,24 @@ class _CoachInsightCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
-                  child: Text(habitTitle, style: theme.textTheme.titleSmall),
+                  child: Text(
+                    habitTitle,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
                     color: _statusColor(context, suggestion.status),
@@ -193,29 +216,32 @@ class _CoachInsightCard extends StatelessWidget {
                   ),
                   child: Text(
                     adaptiveSuggestionStatusLabel(suggestion.status),
-                    style: theme.textTheme.labelSmall,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: _statusForeground(context, suggestion.status),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               adaptiveSuggestionTypeLabel(suggestion.type),
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               formatCoachInsightsDate(suggestion.createdAt),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Text(evidenceText, style: theme.textTheme.bodyMedium),
             if (targetLine != null) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.xs),
               Text(
                 targetLine,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -242,6 +268,19 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.insights_outlined,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
             Text('No coach insights yet', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(

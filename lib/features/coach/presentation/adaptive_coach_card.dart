@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../../home/domain/habit.dart';
 import '../domain/adaptive_suggestion.dart';
 import '../domain/adaptive_suggestion_copy.dart';
@@ -31,61 +33,78 @@ class AdaptiveCoachCard extends StatelessWidget {
     final theme = Theme.of(context);
     final copy = buildAdaptiveSuggestionCopy(suggestion, habit);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Adaptive Coach', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 2),
-            Text(
-              'Based on your recent habit history',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: AppRadii.largeRadius,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 18,
+                color: theme.colorScheme.primary,
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(copy.title, style: theme.textTheme.titleSmall),
-            const SizedBox(height: 6),
-            Text(copy.body, style: theme.textTheme.bodyMedium),
-            if (copy.suggestedTargetLine != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(width: AppSpacing.xs),
               Text(
-                copy.suggestedTargetLine!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                'Adaptive Coach',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            OverflowBar(
-              alignment: MainAxisAlignment.end,
-              spacing: 8,
-              children: [
-                TextButton(
-                  onPressed: onKeep,
-                  child: const Text('Keep current plan'),
-                ),
-                if (onApply != null)
-                  OutlinedButton(
-                    onPressed: onAdjust,
-                    child: const Text('Adjust manually'),
-                  )
-                else
-                  FilledButton(
-                    onPressed: onAdjust,
-                    child: const Text('Adjust manually'),
-                  ),
-                if (onApply != null)
-                  FilledButton(
-                    onPressed: onApply,
-                    child: const Text('Apply suggestion'),
-                  ),
-              ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Based on your recent habit history',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(copy.title, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(copy.body, style: theme.textTheme.bodyMedium),
+          if (copy.suggestedTargetLine != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              copy.suggestedTargetLine!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
-        ),
+          const SizedBox(height: AppSpacing.sm),
+          OverflowBar(
+            alignment: MainAxisAlignment.end,
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: onKeep,
+                child: const Text('Keep current plan'),
+              ),
+              if (onApply != null)
+                OutlinedButton(
+                  onPressed: onAdjust,
+                  child: const Text('Adjust manually'),
+                )
+              else
+                FilledButton(
+                  onPressed: onAdjust,
+                  child: const Text('Adjust manually'),
+                ),
+              if (onApply != null)
+                FilledButton(
+                  onPressed: onApply,
+                  child: const Text('Apply suggestion'),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
