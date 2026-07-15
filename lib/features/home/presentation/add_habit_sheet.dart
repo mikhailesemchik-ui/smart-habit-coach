@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/habit_icons.dart';
@@ -230,255 +231,370 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final maxHeight = MediaQuery.of(context).size.height * 0.92;
 
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.outline,
-                      borderRadius: AppRadii.pillRadius,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.md,
+            bottom: AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _DragHandle(),
+                  Text(
+                    _isEditing ? 'Edit habit' : 'Add habit',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                Text(
-                  _isEditing ? 'Edit habit' : 'Add habit',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(labelText: 'Habit title'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Title cannot be empty';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Scheduled time'),
-                  subtitle: Text(_formatTime(_selectedTime)),
-                  trailing: const Icon(Icons.access_time),
-                  onTap: _pickTime,
-                ),
-                const SizedBox(height: 8),
-                Text('Icon', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final icon in _iconOptions)
-                      _IconChoice(
-                        icon: icon,
-                        selected: icon == _selectedIcon,
-                        onTap: () => setState(() => _selectedIcon = icon),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('Tracking', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                SegmentedButton<HabitTrackingType>(
-                  segments: const [
-                    ButtonSegment(
-                      value: HabitTrackingType.binary,
-                      label: Text('Binary'),
-                    ),
-                    ButtonSegment(
-                      value: HabitTrackingType.quantitative,
-                      label: Text('Amount'),
-                    ),
-                  ],
-                  selected: {_trackingType},
-                  onSelectionChanged: (selection) {
-                    setState(() => _trackingType = selection.first);
-                  },
-                ),
-                if (_trackingType == HabitTrackingType.quantitative) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: _targetController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
+                  const SizedBox(height: AppSpacing.lg),
+                  _FormSection(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: _titleController,
                           decoration: const InputDecoration(
-                            labelText: 'Daily target',
+                            labelText: 'Habit title',
                           ),
-                          validator: _validateTarget,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Title cannot be empty';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        _ScheduledTimeRow(
+                          time: _formatTime(_selectedTime),
+                          onTap: _pickTime,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  const _SectionLabel('Icon'),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      for (final icon in _iconOptions)
+                        _IconChoice(
+                          icon: icon,
+                          selected: icon == _selectedIcon,
+                          onTap: () => setState(() => _selectedIcon = icon),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  const _SectionLabel('Tracking'),
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<HabitTrackingType>(
+                    segments: const [
+                      ButtonSegment(
+                        value: HabitTrackingType.binary,
+                        label: Text('Binary'),
+                      ),
+                      ButtonSegment(
+                        value: HabitTrackingType.quantitative,
+                        label: Text('Amount'),
+                      ),
+                    ],
+                    selected: {_trackingType},
+                    onSelectionChanged: (selection) {
+                      setState(() => _trackingType = selection.first);
+                    },
+                  ),
+                  if (_trackingType == HabitTrackingType.quantitative) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _targetController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Daily target',
+                            ),
+                            validator: _validateTarget,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: _selectedPreset,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                            ),
+                            items: [
+                              ..._unitPresets.map(
+                                (u) =>
+                                    DropdownMenuItem(value: u, child: Text(u)),
+                              ),
+                              const DropdownMenuItem(
+                                value: _customPreset,
+                                child: Text(_customPreset),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _selectedPreset = value);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_selectedPreset == _customPreset) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      TextFormField(
+                        controller: _customUnitController,
+                        decoration: const InputDecoration(
+                          labelText: 'Custom unit',
+                          hintText: 'e.g. glasses, sessions',
+                        ),
+                        maxLength: 20,
+                        buildCounter:
+                            (
+                              _, {
+                              required currentLength,
+                              required isFocused,
+                              required maxLength,
+                            }) => null,
+                        validator: (value) {
+                          if (_selectedPreset != _customPreset) return null;
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  const _SectionLabel('Repeat'),
+                  if (widget.requiredDaysPerWeek != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Select exactly ${widget.requiredDaysPerWeek} '
+                      '${widget.requiredDaysPerWeek == 1 ? "day" : "days"}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  if (widget.requiredDaysPerWeek == null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: true, label: Text('Every day')),
+                        ButtonSegment(
+                          value: false,
+                          label: Text('Specific days'),
+                        ),
+                      ],
+                      selected: {_everyDay},
+                      onSelectionChanged: (selection) {
+                        setState(() {
+                          _everyDay = selection.first;
+                          _weekdayError = false;
+                        });
+                      },
+                    ),
+                  ],
+                  if (!_everyDay) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (var i = 1; i <= 7; i++)
+                          FilterChip(
+                            label: Text(_weekdayLabels[i - 1]),
+                            selected: _selectedWeekdays.contains(i),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedWeekdays.add(i);
+                                } else {
+                                  _selectedWeekdays.remove(i);
+                                }
+                                _weekdayError = false;
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                    if (_weekdayError)
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Text(
+                          _weekdayErrorText,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                  ],
+                  const SizedBox(height: AppSpacing.xl),
+                  const _SectionLabel('Minimum version'),
+                  const SizedBox(height: 2),
+                  Text(
+                    'An easier version for difficult days (optional)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextFormField(
+                    controller: _minimumVersionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum version (optional)',
+                      hintText: '5 minutes of stretching',
+                    ),
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  Row(
+                    children: [
                       Expanded(
-                        child: DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: _selectedPreset,
-                          decoration: const InputDecoration(labelText: 'Unit'),
-                          items: [
-                            ..._unitPresets.map(
-                              (u) => DropdownMenuItem(value: u, child: Text(u)),
-                            ),
-                            const DropdownMenuItem(
-                              value: _customPreset,
-                              child: Text(_customPreset),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _selectedPreset = value);
-                            }
-                          },
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton(
+                          onPressed: _save,
+                          child: const Text('Save'),
                         ),
                       ),
                     ],
                   ),
-                  if (_selectedPreset == _customPreset) ...[
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _customUnitController,
-                      decoration: const InputDecoration(
-                        labelText: 'Custom unit',
-                        hintText: 'e.g. glasses, sessions',
-                      ),
-                      maxLength: 20,
-                      buildCounter:
-                          (
-                            _, {
-                            required currentLength,
-                            required isFocused,
-                            required maxLength,
-                          }) => null,
-                      validator: (value) {
-                        if (_selectedPreset != _customPreset) return null;
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Required';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
                 ],
-                const SizedBox(height: 16),
-                Text('Repeat', style: theme.textTheme.titleSmall),
-                if (widget.requiredDaysPerWeek != null) ...[
-                  const SizedBox(height: 2),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small centered drag handle shown at the top of a bottom sheet.
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 36,
+        height: 4,
+        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.outline,
+          borderRadius: AppRadii.pillRadius,
+        ),
+      ),
+    );
+  }
+}
+
+/// Bold, small section heading used above a form group.
+class _SectionLabel extends StatelessWidget {
+  final String label;
+
+  const _SectionLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+/// Rounded, softly-tinted container grouping related form fields.
+class _FormSection extends StatelessWidget {
+  final Widget child;
+
+  const _FormSection({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: AppRadii.largeRadius,
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Tappable scheduled-time row, replacing the old default ListTile.
+class _ScheduledTimeRow extends StatelessWidget {
+  final String time;
+  final VoidCallback onTap;
+
+  const _ScheduledTimeRow({required this.time, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadii.mediumRadius,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Row(
+          children: [
+            Icon(Icons.access_time, color: theme.colorScheme.primary, size: 20),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Scheduled time', style: theme.textTheme.bodyMedium),
                   Text(
-                    'Select exactly ${widget.requiredDaysPerWeek} '
-                    '${widget.requiredDaysPerWeek == 1 ? "day" : "days"}',
+                    time,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
-                if (widget.requiredDaysPerWeek == null) ...[
-                  const SizedBox(height: 8),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, label: Text('Every day')),
-                      ButtonSegment(value: false, label: Text('Specific days')),
-                    ],
-                    selected: {_everyDay},
-                    onSelectionChanged: (selection) {
-                      setState(() {
-                        _everyDay = selection.first;
-                        _weekdayError = false;
-                      });
-                    },
-                  ),
-                ],
-                if (!_everyDay) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: [
-                      for (var i = 1; i <= 7; i++)
-                        FilterChip(
-                          label: Text(_weekdayLabels[i - 1]),
-                          selected: _selectedWeekdays.contains(i),
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                _selectedWeekdays.add(i);
-                              } else {
-                                _selectedWeekdays.remove(i);
-                              }
-                              _weekdayError = false;
-                            });
-                          },
-                        ),
-                    ],
-                  ),
-                  if (_weekdayError)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        _weekdayErrorText,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ),
-                ],
-                const SizedBox(height: 24),
-                Text('Minimum version', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 2),
-                Text(
-                  'An easier version for difficult days (optional)',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _minimumVersionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Minimum version (optional)',
-                    hintText: '5 minutes of stretching',
-                  ),
-                  maxLines: 1,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(onPressed: _save, child: const Text('Save')),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
         ),
       ),
     );
@@ -502,11 +618,16 @@ class _IconChoice extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: AppRadii.pillRadius,
-      child: CircleAvatar(
-        backgroundColor: selected
-            ? theme.colorScheme.primary
-            : theme.colorScheme.surfaceContainerHighest,
+      borderRadius: AppRadii.mediumRadius,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: AppRadii.mediumRadius,
+        ),
         child: Icon(
           icon,
           color: selected

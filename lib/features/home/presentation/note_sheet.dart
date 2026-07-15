@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../domain/habit.dart';
 
 /// Shows a bottom sheet for adding or editing a per-date note.
@@ -54,10 +55,10 @@ class _NoteSheetState extends State<_NoteSheet> {
       top: false,
       child: SingleChildScrollView(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          top: AppSpacing.md,
+          bottom: AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -67,7 +68,7 @@ class _NoteSheetState extends State<_NoteSheet> {
               child: Container(
                 width: 36,
                 height: 4,
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.outline,
                   borderRadius: AppRadii.pillRadius,
@@ -76,31 +77,44 @@ class _NoteSheetState extends State<_NoteSheet> {
             ),
             Text(
               widget.title,
-              style: theme.textTheme.titleMedium?.copyWith(
+              style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               controller: _controller,
-              maxLines: 4,
+              minLines: 5,
+              maxLines: 8,
               maxLength: 300,
-              decoration: const InputDecoration(hintText: 'Add a note…'),
+              textAlignVertical: TextAlignVertical.top,
+              decoration: const InputDecoration(
+                hintText: 'How did it go today? Add a quick note…',
+                alignLabelWithHint: true,
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.sm),
             OverflowBar(
               alignment: MainAxisAlignment.end,
-              spacing: 8,
+              spacing: AppSpacing.sm,
               children: [
+                if (widget.existingNote != null)
+                  TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(''),
+                    icon: Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: theme.colorScheme.error,
+                    ),
+                    label: Text(
+                      'Delete note',
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
-                if (widget.existingNote != null)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(''),
-                    child: const Text('Delete note'),
-                  ),
                 FilledButton(
                   onPressed: () => Navigator.of(context).pop(_controller.text),
                   child: const Text('Save'),
