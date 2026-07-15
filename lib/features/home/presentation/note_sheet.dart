@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../domain/habit.dart';
 
 /// Shows a bottom sheet for adding or editing a per-date note.
@@ -62,16 +63,29 @@ class _NoteSheetState extends State<_NoteSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.title, style: theme.textTheme.titleMedium),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outline,
+                  borderRadius: AppRadii.pillRadius,
+                ),
+              ),
+            ),
+            Text(
+              widget.title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _controller,
               maxLines: 4,
               maxLength: 300,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Add a note…',
-              ),
+              decoration: const InputDecoration(hintText: 'Add a note…'),
             ),
             const SizedBox(height: 4),
             OverflowBar(

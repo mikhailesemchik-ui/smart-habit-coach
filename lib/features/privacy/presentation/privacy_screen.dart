@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../data/local_data_export_service.dart';
 import '../domain/export_result.dart';
 import 'privacy_keys.dart';
@@ -195,7 +196,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadii.mediumRadius,
               ),
               child: SelectableText(
                 _jsonPreview!,

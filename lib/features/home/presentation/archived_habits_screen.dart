@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../data/habit_storage.dart';
 import '../data/notification_service.dart';
 import '../domain/habit.dart';
@@ -183,7 +184,7 @@ class _ArchivedHabitTile extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant.withValues(
                   alpha: 0.12,
                 ),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: AppRadii.pillRadius,
               ),
               child: Text(
                 'Archived',

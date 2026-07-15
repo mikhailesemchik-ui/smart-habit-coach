@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../data/coach_insights_service.dart';
 import '../domain/adaptive_suggestion.dart';
 import '../domain/adaptive_suggestion_history_copy.dart';
@@ -188,7 +189,7 @@ class _CoachInsightCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: _statusColor(context, suggestion.status),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppRadii.pillRadius,
                   ),
                   child: Text(
                     adaptiveSuggestionStatusLabel(suggestion.status),

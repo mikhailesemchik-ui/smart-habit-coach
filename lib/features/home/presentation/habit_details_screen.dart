@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../data/habit_storage.dart';
 import '../data/notification_service.dart';
 import '../domain/date_key.dart';
@@ -439,7 +440,7 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppRadii.pillRadius,
                   ),
                   child: Text(
                     statusLabel,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../../coach/presentation/coach_insights_screen.dart';
 import '../../home/data/habit_storage.dart';
 import '../../home/domain/habit.dart';
@@ -357,7 +358,7 @@ class _DayIndicator extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppRadii.smallRadius,
       child: Column(
         children: [
           Text(

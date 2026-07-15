@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/habit_icons.dart';
@@ -246,9 +247,22 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outline,
+                      borderRadius: AppRadii.pillRadius,
+                    ),
+                  ),
+                ),
                 Text(
                   _isEditing ? 'Edit habit' : 'Add habit',
-                  style: theme.textTheme.titleLarge,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -316,7 +330,6 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                           ),
                           decoration: const InputDecoration(
                             labelText: 'Daily target',
-                            border: OutlineInputBorder(),
                           ),
                           validator: _validateTarget,
                         ),
@@ -326,10 +339,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                         child: DropdownButtonFormField<String>(
                           isExpanded: true,
                           initialValue: _selectedPreset,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit',
-                            border: OutlineInputBorder(),
-                          ),
+                          decoration: const InputDecoration(labelText: 'Unit'),
                           items: [
                             ..._unitPresets.map(
                               (u) => DropdownMenuItem(value: u, child: Text(u)),
@@ -355,7 +365,6 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       decoration: const InputDecoration(
                         labelText: 'Custom unit',
                         hintText: 'e.g. glasses, sessions',
-                        border: OutlineInputBorder(),
                       ),
                       maxLength: 20,
                       buildCounter:
@@ -452,7 +461,6 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                   decoration: const InputDecoration(
                     labelText: 'Minimum version (optional)',
                     hintText: '5 minutes of stretching',
-                    border: OutlineInputBorder(),
                   ),
                   maxLines: 1,
                 ),
@@ -494,7 +502,7 @@ class _IconChoice extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: AppRadii.pillRadius,
       child: CircleAvatar(
         backgroundColor: selected
             ? theme.colorScheme.primary

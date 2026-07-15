@@ -44,6 +44,9 @@ class HabitDetailsSheet extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
                   onPressed: () =>
                       Navigator.of(context).pop(HabitDetailsAction.delete),
                   child: const Text('Delete'),

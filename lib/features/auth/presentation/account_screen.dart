@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
 import '../../sync/presentation/sync_controller.dart';
 import '../data/auth_repository.dart';
 import '../data/returning_user_sign_in_service.dart';
@@ -325,7 +326,7 @@ class _MessageBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadii.mediumRadius,
           color: theme.colorScheme.surfaceContainerHighest,
         ),
         child: Row(
