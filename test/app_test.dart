@@ -16,7 +16,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Today')),
+      find.descendant(of: find.byType(ListView), matching: find.text('Today')),
       findsOneWidget,
     );
     expect(find.text('Drink water'), findsOneWidget);

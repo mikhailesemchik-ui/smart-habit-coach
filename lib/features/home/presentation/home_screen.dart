@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../../ai_habit_setup/presentation/ai_habit_setup_sheet.dart';
 import '../data/habit_storage.dart';
 import '../data/notification_service.dart';
@@ -346,10 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Today')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final today = DateTime.now();
@@ -382,68 +381,124 @@ class _HomeScreenState extends State<HomeScreen> {
         ? 0.0
         : totalScore / scheduledToday.length;
 
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Today')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(_formatToday(), style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 16),
-          _ProgressCard(
-            completeCount: completeCount,
-            partialCount: partialCount,
-            totalCount: scheduledToday.length,
-            score: progressScore,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xxl,
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _openAiHabitSetup,
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Create with AI'),
+          children: [
+            Text(
+              'Today',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          if (_habits.isNotEmpty && scheduledToday.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Center(
-                child: Text(
-                  'No habits scheduled for today',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              _formatToday(),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _ProgressCard(
+              completeCount: completeCount,
+              partialCount: partialCount,
+              totalCount: scheduledToday.length,
+              score: progressScore,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _CreateWithAiCta(onTap: _openAiHabitSetup),
+            const SizedBox(height: AppSpacing.xl),
+            if (_habits.isNotEmpty && scheduledToday.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: Center(
+                  child: Text(
+                    'No habits scheduled for today',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
-            ),
-          for (final habit in scheduledToday)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _HabitCard(
-                habit: habit,
-                onToggle: habit.isQuantitative
-                    ? () => _logProgress(habit)
-                    : habit.hasMinimumVersion
-                    ? () => _pickStatus(habit)
-                    : () => _setHabitStatus(
-                        habit.id,
-                        habit.completionStatusFor(todayStr) ==
-                                HabitCompletionStatus.full
-                            ? HabitCompletionStatus.none
-                            : HabitCompletionStatus.full,
-                      ),
-                onTap: () => _openHabitDetails(habit),
-                onSkipReason: () => _pickSkipReason(habit),
-                onPartialReason: () => _pickPartialReason(habit),
-                onNote: () => _editNote(habit),
+            for (final habit in scheduledToday)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: _HabitCard(
+                  habit: habit,
+                  onToggle: habit.isQuantitative
+                      ? () => _logProgress(habit)
+                      : habit.hasMinimumVersion
+                      ? () => _pickStatus(habit)
+                      : () => _setHabitStatus(
+                          habit.id,
+                          habit.completionStatusFor(todayStr) ==
+                                  HabitCompletionStatus.full
+                              ? HabitCompletionStatus.none
+                              : HabitCompletionStatus.full,
+                        ),
+                  onTap: () => _openHabitDetails(habit),
+                  onSkipReason: () => _pickSkipReason(habit),
+                  onPartialReason: () => _pickPartialReason(habit),
+                  onNote: () => _editNote(habit),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddHabitSheet,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class _CreateWithAiCta extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _CreateWithAiCta({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Material(
+      color: cs.primary,
+      borderRadius: AppRadii.largeRadius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadii.largeRadius,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.auto_awesome, color: cs.onPrimary),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'Create with AI',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: cs.onPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: cs.onPrimary),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -473,28 +528,56 @@ class _ProgressCard extends StatelessWidget {
     if (remaining > 0) parts.add('$remaining remaining');
     final label = totalCount == 0 ? 'No habits today' : parts.join(' · ');
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Today's progress", style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(value: score),
-            const SizedBox(height: 8),
-            Text(label, style: theme.textTheme.bodyMedium),
-            if (score > 0) ...[
-              const SizedBox(height: 2),
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: AppRadii.largeRadius,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  "Today's progress",
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
               Text(
-                '$percentage% progress score',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                '$percentage%',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ClipRRect(
+            borderRadius: AppRadii.smallRadius,
+            child: LinearProgressIndicator(
+              value: score,
+              minHeight: 8,
+              backgroundColor: theme.colorScheme.surface,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(label, style: theme.textTheme.bodyMedium),
+          if (score > 0) ...[
+            const SizedBox(height: 2),
+            Text(
+              '$percentage% progress score',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -549,55 +632,38 @@ class _HabitCard extends StatelessWidget {
         ? habit.scheduledTime
         : '${habit.scheduledTime} · Missed · $reasonLabel';
 
-    return Card(
-      child: ListTile(
-        onTap: onTap,
-        leading: Icon(habit.icon, color: theme.colorScheme.primary),
-        title: Text(habit.title),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(statusLine),
-            if (note != null)
-              Text(
-                '"$note"',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: theme.colorScheme.onSurfaceVariant,
+    return _HabitCardShell(
+      onTap: onTap,
+      leading: _HabitIconBubble(icon: habit.icon),
+      title: habit.title,
+      statusLine: statusLine,
+      note: note,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'skip') onSkipReason();
+              if (value == 'note') onNote();
+            },
+            itemBuilder: (_) => [
+              if (status == HabitCompletionStatus.none)
+                const PopupMenuItem(
+                  value: 'skip',
+                  child: Text('Why was it missed?'),
                 ),
+              PopupMenuItem(
+                value: 'note',
+                child: Text(note != null ? 'Edit note' : 'Add note'),
               ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                if (value == 'skip') onSkipReason();
-                if (value == 'note') onNote();
-              },
-              itemBuilder: (_) => [
-                if (status == HabitCompletionStatus.none)
-                  const PopupMenuItem(
-                    value: 'skip',
-                    child: Text('Why was it missed?'),
-                  ),
-                PopupMenuItem(
-                  value: 'note',
-                  child: Text(note != null ? 'Edit note' : 'Add note'),
-                ),
-              ],
-            ),
-            IconButton(
-              icon: Icon(icon, color: iconColor),
-              onPressed: onToggle,
-            ),
-          ],
-        ),
+            ],
+          ),
+          IconButton(
+            icon: Icon(icon, color: iconColor),
+            onPressed: onToggle,
+          ),
+        ],
       ),
     );
   }
@@ -638,76 +704,174 @@ class _HabitCard extends StatelessWidget {
         ? '${habit.scheduledTime} · $progressText'
         : habit.scheduledTime;
 
-    return Card(
-      child: Column(
+    return _HabitCardShell(
+      onTap: onTap,
+      leading: _HabitIconBubble(icon: habit.icon, muted: !isComplete),
+      title: habit.title,
+      statusLine: statusLine,
+      note: note,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
-            onTap: onTap,
-            leading: Icon(
-              habit.icon,
-              color: isComplete ? cs.primary : cs.onSurfaceVariant,
-            ),
-            title: Text(habit.title),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(statusLine),
-                if (note != null)
-                  Text(
-                    '"$note"',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontStyle: FontStyle.italic,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) {
-                    if (value == 'skip') onSkipReason();
-                    if (value == 'partial') onPartialReason();
-                    if (value == 'note') onNote();
-                  },
-                  itemBuilder: (_) => [
-                    if (progress == 0 && !isComplete)
-                      const PopupMenuItem(
-                        value: 'skip',
-                        child: Text('Why was it missed?'),
-                      ),
-                    if (isPartial)
-                      const PopupMenuItem(
-                        value: 'partial',
-                        child: Text("Why wasn't the target reached?"),
-                      ),
-                    PopupMenuItem(
-                      value: 'note',
-                      child: Text(note != null ? 'Edit note' : 'Add note'),
-                    ),
-                  ],
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'skip') onSkipReason();
+              if (value == 'partial') onPartialReason();
+              if (value == 'note') onNote();
+            },
+            itemBuilder: (_) => [
+              if (progress == 0 && !isComplete)
+                const PopupMenuItem(
+                  value: 'skip',
+                  child: Text('Why was it missed?'),
                 ),
-                IconButton(
-                  tooltip: isComplete ? 'Update progress' : 'Log progress',
-                  icon: Icon(
-                    isComplete ? Icons.check_circle : Icons.add_circle_outline,
-                    color: isComplete ? cs.primary : null,
-                  ),
-                  onPressed: onToggle,
+              if (isPartial)
+                const PopupMenuItem(
+                  value: 'partial',
+                  child: Text("Why wasn't the target reached?"),
                 ),
-              ],
-            ),
+              PopupMenuItem(
+                value: 'note',
+                child: Text(note != null ? 'Edit note' : 'Add note'),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: LinearProgressIndicator(value: ratio),
+          IconButton(
+            tooltip: isComplete ? 'Update progress' : 'Log progress',
+            icon: Icon(
+              isComplete ? Icons.check_circle : Icons.add_circle_outline,
+              color: isComplete ? cs.primary : null,
+            ),
+            onPressed: onToggle,
           ),
         ],
+      ),
+      footer: Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.sm),
+        child: ClipRRect(
+          borderRadius: AppRadii.smallRadius,
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 6,
+            backgroundColor: cs.surfaceContainerHighest,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shared rounded-card shell for both binary and quantitative habit cards —
+/// keeps the same title/status/note/trailing-actions structure and text so
+/// existing behavior and widget finders (icons, tooltips, popup menu items)
+/// are unaffected by the visual restyle.
+class _HabitCardShell extends StatelessWidget {
+  final VoidCallback onTap;
+  final Widget leading;
+  final String title;
+  final String statusLine;
+  final String? note;
+  final Widget trailing;
+  final Widget? footer;
+
+  const _HabitCardShell({
+    required this.onTap,
+    required this.leading,
+    required this.title,
+    required this.statusLine,
+    required this.note,
+    required this.trailing,
+    this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: AppRadii.largeRadius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadii.largeRadius,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  leading,
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          statusLine,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (note != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              '"$note"',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontStyle: FontStyle.italic,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  trailing,
+                ],
+              ),
+              ?footer,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small rounded icon bubble used as the leading element of a habit card.
+class _HabitIconBubble extends StatelessWidget {
+  final IconData icon;
+  final bool muted;
+
+  const _HabitIconBubble({required this.icon, this.muted = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: muted ? cs.surfaceContainerHighest : cs.primaryContainer,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        size: 20,
+        color: muted ? cs.onSurfaceVariant : cs.primary,
       ),
     );
   }
