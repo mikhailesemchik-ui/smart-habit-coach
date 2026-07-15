@@ -390,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
             AppSpacing.lg,
             AppSpacing.lg,
             AppSpacing.lg,
-            AppSpacing.xxl,
+            96,
           ),
           children: [
             Text(
