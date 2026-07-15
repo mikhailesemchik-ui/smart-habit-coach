@@ -133,6 +133,20 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     return null;
   }
 
+  /// Lighter, less "default Material" segmented-control look: a soft
+  /// tinted selected state instead of a solid filled one, and a thinner
+  /// outline, while keeping selection clearly visible.
+  ButtonStyle _segmentedStyle(ThemeData theme) {
+    final cs = theme.colorScheme;
+    return SegmentedButton.styleFrom(
+      backgroundColor: cs.surface,
+      selectedBackgroundColor: cs.primaryContainer,
+      selectedForegroundColor: cs.primary,
+      foregroundColor: cs.onSurfaceVariant,
+      side: BorderSide(color: cs.outlineVariant),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -231,10 +245,22 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final maxHeight = MediaQuery.of(context).size.height * 0.92;
+    final mediaQuery = MediaQuery.of(context);
+    final maxHeight = mediaQuery.size.height * 0.92;
+    // Accounts for both the on-screen keyboard (viewInsets) and the
+    // permanent system gesture/navigation bar (viewPadding) — using only
+    // one of the two either clips the footer behind the nav bar when the
+    // keyboard is closed, or leaves it too high once the keyboard opens.
+    // The Container background (matching the bottom sheet's own surface
+    // color) paints all the way through that inset too, so there is no
+    // mismatched strip of the screen's default background showing below
+    // the footer.
+    final bottomInset = mediaQuery.viewInsets.bottom > 0
+        ? mediaQuery.viewInsets.bottom
+        : mediaQuery.viewPadding.bottom;
 
-    return SafeArea(
-      top: false,
+    return Container(
+      color: theme.colorScheme.surface,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
         child: Padding(
@@ -242,7 +268,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
             left: AppSpacing.lg,
             right: AppSpacing.lg,
             top: AppSpacing.md,
-            bottom: AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
+            bottom: AppSpacing.md + bottomInset,
           ),
           child: Form(
             key: _formKey,
@@ -258,7 +284,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
                   _FormSection(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,7 +309,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
                   const _SectionLabel('Icon'),
                   const SizedBox(height: AppSpacing.sm),
                   Wrap(
@@ -298,10 +324,11 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
                   const _SectionLabel('Tracking'),
                   const SizedBox(height: AppSpacing.sm),
                   SegmentedButton<HabitTrackingType>(
+                    style: _segmentedStyle(theme),
                     segments: const [
                       ButtonSegment(
                         value: HabitTrackingType.binary,
@@ -388,7 +415,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       ),
                     ],
                   ],
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
                   const _SectionLabel('Repeat'),
                   if (widget.requiredDaysPerWeek != null) ...[
                     const SizedBox(height: 2),
@@ -403,6 +430,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                   if (widget.requiredDaysPerWeek == null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     SegmentedButton<bool>(
+                      style: _segmentedStyle(theme),
                       segments: const [
                         ButtonSegment(value: true, label: Text('Every day')),
                         ButtonSegment(
@@ -453,7 +481,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                         ),
                       ),
                   ],
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.md),
                   const _SectionLabel('Minimum version'),
                   const SizedBox(height: 2),
                   Text(
@@ -471,7 +499,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                     ),
                     maxLines: 1,
                   ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [
                       Expanded(
@@ -545,11 +573,13 @@ class _FormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: cs.surface,
         borderRadius: AppRadii.largeRadius,
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: child,
     );
@@ -620,18 +650,23 @@ class _IconChoice extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppRadii.mediumRadius,
       child: Container(
-        width: 44,
-        height: 44,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.surfaceContainerHighest,
+          color: selected ? theme.colorScheme.primaryContainer : null,
           borderRadius: AppRadii.mediumRadius,
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+            width: selected ? 1.5 : 1,
+          ),
         ),
         child: Icon(
           icon,
+          size: 20,
           color: selected
-              ? theme.colorScheme.onPrimary
+              ? theme.colorScheme.primary
               : theme.colorScheme.onSurfaceVariant,
         ),
       ),
