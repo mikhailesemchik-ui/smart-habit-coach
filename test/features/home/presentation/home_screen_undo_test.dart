@@ -82,7 +82,7 @@ void main() {
     // Toggle → completed.
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
     await _pumpSnackBarVisible(tester);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
 
     // Undo → back to uncompleted.
     await tester.tap(find.text('Undo'));
@@ -109,7 +109,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Still completed — undo was not tapped.
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
   });
 
   // Test 20: adding a note shows "Note saved" snackbar
@@ -499,7 +499,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.radio_button_unchecked));
     await _pumpSnackBarVisible(tester);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
 
     await tester.tap(find.text('Undo'));
     await tester.pump();
@@ -531,7 +531,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300)); // exit animation
 
     expect(find.text('Undo'), findsNothing);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
   });
 
   // Test 35: A second action replaces the first SnackBar

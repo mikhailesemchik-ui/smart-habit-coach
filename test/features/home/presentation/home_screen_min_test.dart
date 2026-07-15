@@ -47,7 +47,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.radio_button_unchecked));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      expect(find.byIcon(Icons.circle), findsOneWidget);
       // No picker sheet opened.
       expect(find.text('Complete fully'), findsNothing);
     },
@@ -85,7 +85,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
     expect(find.byIcon(Icons.adjust), findsNothing);
   });
 

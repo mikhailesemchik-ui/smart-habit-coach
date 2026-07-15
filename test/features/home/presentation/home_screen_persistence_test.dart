@@ -67,7 +67,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.radio_button_unchecked).first);
         await tester.pump();
 
-        expect(find.byIcon(Icons.check_circle), findsOneWidget);
+        expect(find.byIcon(Icons.circle), findsOneWidget);
 
         // Force a fresh HomeScreen state (simulates re-navigating or hot restart).
         await tester.pumpWidget(
@@ -75,7 +75,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.byIcon(Icons.check_circle), findsOneWidget);
+        expect(find.byIcon(Icons.circle), findsOneWidget);
       },
     );
   });

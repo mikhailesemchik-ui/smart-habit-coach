@@ -99,7 +99,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(HabitDetailsScreen), findsNothing);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
   });
 
   // ── Summary card ──────────────────────────────────────────────────────────
