@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../data/habit_storage.dart';
 import '../data/notification_service.dart';
 import '../domain/habit.dart';
@@ -167,69 +168,105 @@ class _ArchivedHabitTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ListTile(
-            onTap: onTap,
-            leading: Icon(
-              habit.icon,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            title: Text(habit.title),
-            subtitle: Text('${habit.scheduledTime} · ${_repeatLabel()}'),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.12,
-                ),
-                borderRadius: AppRadii.pillRadius,
-              ),
-              child: Text(
-                'Archived',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Semantics(
-                label: 'Restore ${habit.title}',
-                button: true,
-                enabled: !isBusy,
-                child: TextButton.icon(
-                  onPressed: isBusy ? null : onRestore,
-                  icon: const Icon(Icons.unarchive_outlined, size: 18),
-                  label: const Text('Restore'),
-                ),
-              ),
-              Semantics(
-                label: 'Permanently delete ${habit.title}',
-                button: true,
-                enabled: !isBusy,
-                child: TextButton.icon(
-                  onPressed: isBusy ? null : onDelete,
-                  icon: Icon(
-                    Icons.delete_outline,
-                    size: 18,
-                    color: theme.colorScheme.error,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              onTap: onTap,
+              borderRadius: AppRadii.mediumRadius,
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      habit.icon,
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  label: Text(
-                    'Delete',
-                    style: TextStyle(color: theme.colorScheme.error),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          habit.title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '${habit.scheduledTime} · ${_repeatLabel()}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: AppRadii.pillRadius,
+                    ),
+                    child: Text(
+                      'Archived',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(height: 1),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Semantics(
+                  label: 'Restore ${habit.title}',
+                  button: true,
+                  enabled: !isBusy,
+                  child: TextButton.icon(
+                    onPressed: isBusy ? null : onRestore,
+                    icon: const Icon(Icons.unarchive_outlined, size: 18),
+                    label: const Text('Restore'),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-        ],
+                Semantics(
+                  label: 'Permanently delete ${habit.title}',
+                  button: true,
+                  enabled: !isBusy,
+                  child: TextButton.icon(
+                    onPressed: isBusy ? null : onDelete,
+                    icon: Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: theme.colorScheme.error,
+                    ),
+                    label: Text(
+                      'Delete',
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

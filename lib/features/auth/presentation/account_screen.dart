@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../../sync/presentation/sync_controller.dart';
 import '../data/auth_repository.dart';
 import '../data/returning_user_sign_in_service.dart';
@@ -220,49 +221,61 @@ class _SyncSection extends StatelessWidget {
     final state = controller.state;
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('Sync', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Text(
-          state.lastSuccessfulSyncAt != null
-              ? 'Last synced: ${state.lastSuccessfulSyncAt}'
-              : 'Never synced on this device.',
-          key: lastSyncedTextKey,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (state.lastFailure != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _MessageBanner(
-              icon: Icons.error_outline,
-              text: syncFailureMessage(state.lastFailure!),
-            ),
-          )
-        else if (state.lastSummary != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _MessageBanner(
-              icon: Icons.check_circle_outline,
-              text: syncSummaryMessage(state.lastSummary!),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: AppRadii.largeRadius,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Sync',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
             ),
           ),
-        FilledButton.icon(
-          key: syncNowButtonKey,
-          onPressed: state.isSyncing ? null : controller.syncNow,
-          icon: state.isSyncing
-              ? const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.sync),
-          label: Text(state.isSyncing ? 'Syncing…' : 'Sync now'),
-        ),
-      ],
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            state.lastSuccessfulSyncAt != null
+                ? 'Last synced: ${state.lastSuccessfulSyncAt}'
+                : 'Never synced on this device.',
+            key: lastSyncedTextKey,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (state.lastFailure != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: _MessageBanner(
+                icon: Icons.error_outline,
+                text: syncFailureMessage(state.lastFailure!),
+              ),
+            )
+          else if (state.lastSummary != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: _MessageBanner(
+                icon: Icons.check_circle_outline,
+                text: syncSummaryMessage(state.lastSummary!),
+              ),
+            ),
+          FilledButton.icon(
+            key: syncNowButtonKey,
+            onPressed: state.isSyncing ? null : controller.syncNow,
+            icon: state.isSyncing
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            label: Text(state.isSyncing ? 'Syncing…' : 'Sync now'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -293,12 +306,51 @@ class _StatusCard extends StatelessWidget {
       ),
     };
 
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.account_circle_outlined),
-        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-        titleTextStyle: theme.textTheme.titleMedium,
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: AppRadii.largeRadius,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.account_circle_outlined,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -318,13 +370,20 @@ class _MessageBanner extends StatelessWidget {
 
   const _MessageBanner({required this.icon, required this.text});
 
+  Color _iconColor(ThemeData theme) {
+    if (icon == Icons.error_outline) return theme.colorScheme.error;
+    if (icon == Icons.check_circle_outline) return theme.colorScheme.primary;
+    if (icon == Icons.warning_amber_outlined) return theme.colorScheme.error;
+    return theme.colorScheme.onSurfaceVariant;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Semantics(
       liveRegion: true,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           borderRadius: AppRadii.mediumRadius,
           color: theme.colorScheme.surfaceContainerHighest,
@@ -332,8 +391,8 @@ class _MessageBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 20),
-            const SizedBox(width: 8),
+            Icon(icon, size: 20, color: _iconColor(theme)),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(text)),
           ],
         ),
@@ -749,7 +808,23 @@ class _AccountFormShell extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.outline,
+                    borderRadius: AppRadii.pillRadius,
+                  ),
+                ),
+              ),
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 12),
               child,
             ],

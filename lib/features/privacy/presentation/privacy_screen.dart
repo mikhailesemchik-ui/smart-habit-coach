@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../data/local_data_export_service.dart';
 import '../domain/export_result.dart';
 import 'privacy_keys.dart';
@@ -219,16 +220,37 @@ class _Section extends StatelessWidget {
 
   const _Section({required this.title, required this.body});
 
+  IconData get _icon => switch (title) {
+    'Local data' => Icons.smartphone_outlined,
+    'Cloud sync' => Icons.cloud_outlined,
+    'AI features' => Icons.auto_awesome_outlined,
+    'Notifications' => Icons.notifications_outlined,
+    'Export' => Icons.download_outlined,
+    'Account deletion' => Icons.person_off_outlined,
+    _ => Icons.info_outline,
+  };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: theme.textTheme.titleSmall),
-          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(_icon, size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             body,
             style: theme.textTheme.bodyMedium?.copyWith(

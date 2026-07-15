@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_spacing.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/account_screen.dart';
 import '../../home/data/notification_service.dart';
@@ -112,96 +114,129 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          Center(
-            child: CircleAvatar(
-              radius: 32,
-              child: Text(
-                settings.displayName.trim().isNotEmpty
-                    ? settings.displayName.trim()[0].toUpperCase()
-                    : '?',
-                style: theme.textTheme.headlineMedium,
-              ),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: AppRadii.largeRadius,
+            ),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: theme.colorScheme.surface,
+                  child: Text(
+                    settings.displayName.trim().isNotEmpty
+                        ? settings.displayName.trim()[0].toUpperCase()
+                        : '?',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  settings.displayName,
+                  key: const Key('profileDisplayName'),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            settings.displayName,
-            key: const Key('profileDisplayName'),
-            style: theme.textTheme.titleLarge,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Text('Display name', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-            onChanged: _onDisplayNameChanged,
-          ),
-          const SizedBox(height: 24),
-          Text('Theme', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          SegmentedButton<ThemeMode>(
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              padding: WidgetStatePropertyAll(
-                EdgeInsets.symmetric(horizontal: 8),
-              ),
+          const SizedBox(height: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.lg,
             ),
-            segments: const [
-              ButtonSegment(value: ThemeMode.system, label: Text('System')),
-              ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-              ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-            ],
-            selected: {settings.themeMode},
-            onSelectionChanged: _onThemeModeChanged,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: AppRadii.largeRadius,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Display name', style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _nameController,
+                  onChanged: _onDisplayNameChanged,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text('Theme', style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                SegmentedButton<ThemeMode>(
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    padding: WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                  ),
+                  segments: const [
+                    ButtonSegment(
+                      value: ThemeMode.system,
+                      label: Text('System'),
+                    ),
+                    ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                    ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                  ],
+                  selected: {settings.themeMode},
+                  onSelectionChanged: _onThemeModeChanged,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text('Start of week', style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                SegmentedButton<StartOfWeek>(
+                  segments: const [
+                    ButtonSegment(
+                      value: StartOfWeek.monday,
+                      label: Text('Monday'),
+                    ),
+                    ButtonSegment(
+                      value: StartOfWeek.sunday,
+                      label: Text('Sunday'),
+                    ),
+                  ],
+                  selected: {settings.startOfWeek},
+                  onSelectionChanged: _onStartOfWeekChanged,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                const Divider(),
+                const SizedBox(height: AppSpacing.md),
+                Text('Notifications', style: theme.textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                _buildNotificationStatus(theme),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          Text('Start of week', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          SegmentedButton<StartOfWeek>(
-            segments: const [
-              ButtonSegment(value: StartOfWeek.monday, label: Text('Monday')),
-              ButtonSegment(value: StartOfWeek.sunday, label: Text('Sunday')),
-            ],
-            selected: {settings.startOfWeek},
-            onSelectionChanged: _onStartOfWeekChanged,
-          ),
-          const SizedBox(height: 24),
-          const Divider(),
-          Text('Notifications', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          _buildNotificationStatus(theme),
-          const SizedBox(height: 24),
-          const Divider(),
-          ListTile(
-            key: profileAccountTileKey,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.account_circle_outlined),
-            title: const Text('Account'),
-            subtitle: const Text('Link, sign in, or sign out'),
-            trailing: const Icon(Icons.chevron_right),
+          const SizedBox(height: AppSpacing.lg),
+          _ProfileEntryRow(
+            entryKey: profileAccountTileKey,
+            icon: Icons.account_circle_outlined,
+            title: 'Account',
+            subtitle: 'Link, sign in, or sign out',
             onTap: _openAccount,
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.archive_outlined),
-            title: const Text('Archived habits'),
-            trailing: const Icon(Icons.chevron_right),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileEntryRow(
+            icon: Icons.archive_outlined,
+            title: 'Archived habits',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ArchivedHabitsScreen()),
             ),
           ),
-          ListTile(
-            key: profilePrivacyTileKey,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Privacy & data'),
-            trailing: const Icon(Icons.chevron_right),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileEntryRow(
+            entryKey: profilePrivacyTileKey,
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy & data',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const PrivacyScreen()),
@@ -249,6 +284,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Rounded, tappable settings entry row (Account/Archived habits/Privacy).
+class _ProfileEntryRow extends StatelessWidget {
+  final Key? entryKey;
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  const _ProfileEntryRow({
+    this.entryKey,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      key: entryKey,
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: AppRadii.largeRadius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadii.largeRadius,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 20, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
