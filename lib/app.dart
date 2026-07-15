@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app/theme/app_theme.dart';
 import 'core/storage/legacy_migration_runner.dart';
 import 'core/storage/user_data_schema_migrator.dart';
 import 'features/auth/data/auth_repository.dart';
@@ -140,8 +141,6 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
 
   @override
   Widget build(BuildContext context) {
-    const seedColor = Colors.teal;
-
     Widget home;
     if (_phase == _StartupPhase.retryNeeded) {
       home = StartupRetryScreen(
@@ -174,17 +173,8 @@ class _SmartHabitCoachAppState extends State<SmartHabitCoachApp> {
     return MaterialApp(
       title: 'Smart Habit Coach',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       themeMode: _settings.themeMode,
       home: home,
     );
