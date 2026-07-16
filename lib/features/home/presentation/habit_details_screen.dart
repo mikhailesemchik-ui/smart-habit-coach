@@ -12,6 +12,7 @@ import 'note_sheet.dart';
 import 'partial_reason_sheet.dart';
 import 'progress_entry_sheet.dart';
 import 'skip_reason_sheet.dart';
+import 'undo_snackbar.dart';
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -81,21 +82,16 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     if (!mounted || _undoHabit == null) return;
     _undoToken++;
     final token = _undoToken;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(label: 'Undo', onPressed: _undoDateChange),
-        ),
-      ).closed.then((reason) {
-        if (!mounted) return;
-        if (reason != SnackBarClosedReason.action && token == _undoToken) {
-          setState(() => _undoHabit = null);
-        }
-      });
+    showUndoSnackBar(
+      context,
+      message: message,
+      onUndo: _undoDateChange,
+    ).closed.then((_) {
+      if (!mounted) return;
+      if (token == _undoToken) {
+        setState(() => _undoHabit = null);
+      }
+    });
   }
 
   Future<void> _undoDateChange() async {
@@ -394,39 +390,69 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
-      appBar: AppBar(title: Text(_habit.title)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSummaryCard(theme),
-            const SizedBox(height: 16),
-            _buildStatsCard(theme),
-            const SizedBox(height: 16),
-            _buildCalendarSection(theme),
-            const SizedBox(height: 24),
-            _buildActions(theme),
-          ],
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg + bottomInset,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header scrolls away with the rest of the page — it is
+              // deliberately NOT in Scaffold.appBar, which Flutter always
+              // pins above the body regardless of the body's own scrolling.
+              Row(
+                children: [
+                  const BackButton(),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      _habit.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _buildSummaryCard(theme),
+              const SizedBox(height: AppSpacing.lg),
+              _buildStatsCard(theme),
+              const SizedBox(height: AppSpacing.lg),
+              _buildCalendarSection(theme),
+              const SizedBox(height: AppSpacing.xl),
+              _buildActions(theme),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSummaryCard(ThemeData theme) {
+    final cs = theme.colorScheme;
     final statusLabel = _statusLabel();
     final statusColor = switch (_habit.status) {
-      HabitStatus.active => theme.colorScheme.primary,
-      HabitStatus.paused => theme.colorScheme.tertiary,
-      HabitStatus.archived => theme.colorScheme.onSurfaceVariant,
+      HabitStatus.active => cs.primary,
+      HabitStatus.paused => cs.tertiary,
+      HabitStatus.archived => cs.onSurfaceVariant,
     };
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
+        color: cs.surface,
         borderRadius: AppRadii.largeRadius,
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,13 +469,14 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm,
                   vertical: AppSpacing.xs,
                 ),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: AppRadii.pillRadius,
                 ),
                 child: Text(
@@ -462,42 +489,55 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: AppRadii.mediumRadius,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _LabelValue(label: 'Reminder', value: _habit.scheduledTime),
+          const SizedBox(height: AppSpacing.sm),
+          Divider(height: 1, color: cs.outlineVariant),
+          const SizedBox(height: AppSpacing.xs),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow(
+                icon: Icons.access_time,
+                label: 'Reminder',
+                value: _habit.scheduledTime,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              _DetailRow(
+                icon: Icons.repeat,
+                label: 'Repeat',
+                value: _repeatLabel(),
+              ),
+              if (_habit.isQuantitative && _habit.targetValue != null) ...[
                 const SizedBox(height: AppSpacing.xs),
-                _LabelValue(label: 'Repeat', value: _repeatLabel()),
-                if (_habit.isQuantitative && _habit.targetValue != null) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  _LabelValue(
-                    label: 'Target',
-                    value:
-                        '${habitProgressLabel(_habit.targetValue!)}${_habit.unit != null ? " ${_habit.unit}" : ""}',
-                  ),
-                ],
-                if (_habit.hasMinimumVersion) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  _LabelValue(label: 'Minimum', value: _habit.minimumVersion!),
-                ],
-                const SizedBox(height: AppSpacing.xs),
-                _LabelValue(label: 'Today', value: _statusTextFor(_today)),
-                if (_habit.noteFor(_today) != null) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  _LabelValue(
-                    label: 'Note',
-                    value: '"${_habit.noteFor(_today)}"',
-                  ),
-                ],
+                _DetailRow(
+                  icon: Icons.flag_outlined,
+                  label: 'Target',
+                  value:
+                      '${habitProgressLabel(_habit.targetValue!)}${_habit.unit != null ? " ${_habit.unit}" : ""}',
+                ),
               ],
-            ),
+              if (_habit.hasMinimumVersion) ...[
+                const SizedBox(height: AppSpacing.xs),
+                _DetailRow(
+                  icon: Icons.spa_outlined,
+                  label: 'Minimum',
+                  value: _habit.minimumVersion!,
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xs),
+              _DetailRow(
+                icon: Icons.today_outlined,
+                label: 'Today',
+                value: _statusTextFor(_today),
+              ),
+              if (_habit.noteFor(_today) != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                _DetailRow(
+                  icon: Icons.sticky_note_2_outlined,
+                  label: 'Note',
+                  value: '"${_habit.noteFor(_today)}"',
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -523,75 +563,92 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     final minCount = habitMinimumCompletedCount(_habit);
     final consistencyRate = habitConsistencyRate(_habit, _today);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Statistics', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: AppRadii.largeRadius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Statistics',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  label: 'Current streak',
+                  value: _pluralDays(streak),
+                ),
+              ),
+              Expanded(
+                child: _StatTile(
+                  label: 'Best streak',
+                  value: _pluralDays(best),
+                ),
+              ),
+            ],
+          ),
+          Divider(
+            height: AppSpacing.md,
+            thickness: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  label: 'Last 30 days',
+                  value: '${(rate * 100).round()}%',
+                ),
+              ),
+              Expanded(
+                child: _StatTile(label: 'Total done', value: '$total'),
+              ),
+            ],
+          ),
+          if (_habit.hasMinimumVersion) ...[
+            Divider(
+              height: AppSpacing.md,
+              thickness: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
             Row(
               children: [
                 Expanded(
-                  child: _StatTile(
-                    label: 'Current streak',
-                    value: _pluralDays(streak),
-                  ),
+                  child: _StatTile(label: 'Minimum done', value: '$minCount'),
                 ),
-                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: _StatTile(
-                    label: 'Best streak',
-                    value: _pluralDays(best),
+                    label: 'Consistency',
+                    value: '${(consistencyRate * 100).round()}%',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatTile(
-                    label: 'Last 30 days',
-                    value: '${(rate * 100).round()}%',
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: _StatTile(label: 'Total done', value: '$total'),
-                ),
-              ],
-            ),
-            if (_habit.hasMinimumVersion) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatTile(label: 'Minimum done', value: '$minCount'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: _StatTile(
-                      label: 'Consistency',
-                      value: '${(consistencyRate * 100).round()}%',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (mostCommonReason != null) ...[
-              const SizedBox(height: 12),
-              _StatTile(
-                label: 'Most common reason',
-                value:
-                    '${habitSkipReasonLabel(mostCommonReason.key)} · '
-                    '${mostCommonReason.value} '
-                    '${mostCommonReason.value == 1 ? 'time' : 'times'}',
-              ),
-            ],
           ],
-        ),
+          if (mostCommonReason != null) ...[
+            Divider(
+              height: AppSpacing.md,
+              thickness: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            _StatTile(
+              label: 'Most common reason',
+              value:
+                  '${habitSkipReasonLabel(mostCommonReason.key)} · '
+                  '${mostCommonReason.value} '
+                  '${mostCommonReason.value == 1 ? 'time' : 'times'}',
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -607,70 +664,88 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     final avgLogged = habitQuantitativeAverageLogged(_habit, _today);
     final unit = _habit.unit ?? '';
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Statistics', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatTile(
-                    label: 'Target streak',
-                    value: _pluralDays(streak),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: _StatTile(
-                    label: 'Best streak',
-                    value: _pluralDays(best),
-                  ),
-                ),
-              ],
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: AppRadii.largeRadius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Statistics',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatTile(
-                    label: 'Target rate (30d)',
-                    value: '${(targetRate * 100).round()}%',
-                  ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  label: 'Target streak',
+                  value: _pluralDays(streak),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: _StatTile(
-                    label: 'Consistency (30d)',
-                    value: '${(consistencyRate * 100).round()}%',
-                  ),
+              ),
+              Expanded(
+                child: _StatTile(
+                  label: 'Best streak',
+                  value: _pluralDays(best),
                 ),
-              ],
-            ),
-            if (avgLogged > 0) ...[
-              const SizedBox(height: 12),
-              _StatTile(
-                label: 'Avg when logged',
-                value:
-                    '${habitProgressLabel(avgLogged)}'
-                    '${unit.isNotEmpty ? " $unit" : ""}',
               ),
             ],
-            if (mostCommonReason != null) ...[
-              const SizedBox(height: 12),
-              _StatTile(
-                label: 'Most common reason',
-                value:
-                    '${habitSkipReasonLabel(mostCommonReason.key)} · '
-                    '${mostCommonReason.value} '
-                    '${mostCommonReason.value == 1 ? 'time' : 'times'}',
+          ),
+          Divider(
+            height: AppSpacing.md,
+            thickness: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  label: 'Target rate (30d)',
+                  value: '${(targetRate * 100).round()}%',
+                ),
+              ),
+              Expanded(
+                child: _StatTile(
+                  label: 'Consistency (30d)',
+                  value: '${(consistencyRate * 100).round()}%',
+                ),
               ),
             ],
+          ),
+          if (avgLogged > 0) ...[
+            Divider(
+              height: AppSpacing.md,
+              thickness: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            _StatTile(
+              label: 'Avg when logged',
+              value:
+                  '${habitProgressLabel(avgLogged)}'
+                  '${unit.isNotEmpty ? " $unit" : ""}',
+            ),
           ],
-        ),
+          if (mostCommonReason != null) ...[
+            Divider(
+              height: AppSpacing.md,
+              thickness: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            _StatTile(
+              label: 'Most common reason',
+              value:
+                  '${habitSkipReasonLabel(mostCommonReason.key)} · '
+                  '${mostCommonReason.value} '
+                  '${mostCommonReason.value == 1 ? 'time' : 'times'}',
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -692,7 +767,12 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Activity', style: theme.textTheme.titleMedium),
+          Text(
+            'Activity',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
@@ -705,7 +785,9 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
                 child: Text(
                   '${_monthNames[month - 1]} $year',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               IconButton(
@@ -785,14 +867,14 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
           icon: const Icon(Icons.edit_outlined),
           label: const Text('Edit habit'),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.sm),
         if (_habit.status == HabitStatus.active) ...[
           OutlinedButton.icon(
             onPressed: _pauseHabit,
             icon: const Icon(Icons.pause_outlined),
             label: const Text('Pause habit'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
             onPressed: _archiveHabit,
             icon: const Icon(Icons.archive_outlined),
@@ -804,7 +886,7 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
             icon: const Icon(Icons.play_arrow_outlined),
             label: const Text('Resume habit'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
             onPressed: _archiveHabit,
             icon: const Icon(Icons.archive_outlined),
@@ -817,7 +899,7 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
             label: const Text('Restore habit'),
           ),
         ],
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.xl),
         Center(
           child: Semantics(
             label: 'Permanently delete ${_habit.title}',
@@ -833,7 +915,10 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
                 'Delete habit',
                 style: TextStyle(color: theme.colorScheme.error),
               ),
-              style: OutlinedButton.styleFrom(side: BorderSide.none),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide.none,
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           ),
         ),
@@ -917,7 +1002,7 @@ class _DateStatusSheet extends StatelessWidget {
               ),
               onTap: () => Navigator.of(context).pop(_DateAction.note),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
           ],
         ),
       ),
@@ -937,33 +1022,55 @@ class _HeroIconBubble extends StatelessWidget {
     return Container(
       width: 48,
       height: 48,
-      decoration: BoxDecoration(color: cs.surface, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        shape: BoxShape.circle,
+      ),
       child: Icon(icon, color: cs.primary, size: 24),
     );
   }
 }
 
-class _LabelValue extends StatelessWidget {
+/// A clean "detail row" — a small muted icon, a small muted label, and a
+/// prominent value — used instead of a boxed label/value table so the hero
+/// card's detail section reads as a scannable list, not a grid.
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
 
-  const _LabelValue({required this.label, required this.value});
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        Icon(icon, size: 16, color: cs.onSurfaceVariant),
+        const SizedBox(width: AppSpacing.sm),
         SizedBox(
-          width: 72,
+          width: 76,
           child: Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: cs.onSurfaceVariant,
             ),
           ),
         ),
-        Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -978,31 +1085,25 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: AppRadii.mediumRadius,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.bold,
           ),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1039,7 +1140,7 @@ class _QuantCalendarDateSheet extends StatelessWidget {
             title: Text(note != null ? 'Edit note' : 'Add note'),
             onTap: () => Navigator.of(context).pop('note'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );
@@ -1084,13 +1185,18 @@ class _CalendarDayCell extends StatelessWidget {
       bg = cs.primary;
       textColor = cs.onPrimary;
     } else if (isMinimum) {
-      bg = cs.tertiary.withValues(alpha: 0.25);
-      textColor = cs.tertiary;
+      bg = cs.tertiaryContainer;
+      textColor = cs.onTertiaryContainer;
     } else if (isPartial) {
-      bg = cs.secondary.withValues(alpha: 0.25);
-      textColor = cs.secondary;
+      bg = cs.secondaryContainer;
+      textColor = cs.onSecondaryContainer;
     } else {
-      bg = cs.error.withValues(alpha: 0.15);
+      // Blended (not raw) errorContainer — a muted, desaturated tint that
+      // reads as "missed" without competing with the teal/mint palette.
+      bg = Color.alphaBlend(
+        cs.errorContainer.withValues(alpha: 0.55),
+        cs.surface,
+      );
       textColor = cs.error;
     }
 

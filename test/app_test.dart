@@ -120,7 +120,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Pop back to the home screen.
-    await tester.pageBack();
+    await tester.ensureVisible(find.byType(BackButton));
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 
     expect(find.text('Drink more water'), findsOneWidget);
@@ -149,7 +150,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Pop back to the home screen.
-    await tester.pageBack();
+    await tester.ensureVisible(find.byType(BackButton));
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 
     expect(find.text('Drink water'), findsOneWidget);
@@ -177,7 +179,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Back to home screen after canceling.
-      await tester.pageBack();
+      await tester.ensureVisible(find.byType(BackButton));
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
 
       expect(find.text('Evening walk'), findsOneWidget);

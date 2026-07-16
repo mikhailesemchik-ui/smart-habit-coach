@@ -127,6 +127,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).first, 'Test note');
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await _pumpSnackBarVisible(tester);
 
@@ -153,6 +154,7 @@ void main() {
     await tester.tap(find.text('Add note'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Temp note');
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await _pumpSnackBarVisible(tester);
 
@@ -214,6 +216,7 @@ void main() {
     await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await _pumpSnackBarVisible(tester);
 
@@ -239,6 +242,7 @@ void main() {
     await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await _pumpSnackBarVisible(tester);
 
@@ -281,6 +285,7 @@ void main() {
 
       // Clear the field and save 0.
       await tester.enterText(find.byType(TextField).first, '0');
+      await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await _pumpSnackBarVisible(tester);
 
@@ -315,6 +320,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).first, '2');
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await _pumpSnackBarVisible(tester);
 
@@ -353,6 +359,7 @@ void main() {
     await tester.tap(find.byTooltip('Log progress'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '2');
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await _pumpSnackBarVisible(tester);
 

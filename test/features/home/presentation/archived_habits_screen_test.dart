@@ -146,8 +146,11 @@ void main() {
     await tester.tap(find.text('Restore habit'));
     await tester.pumpAndSettle();
 
-    // Pop back to the archived list.
-    await tester.pageBack();
+    // Pop back to the archived list. The back button now lives in the
+    // scrollable header (it scrolls away with the page), so it must be
+    // scrolled back into view before it can be tapped.
+    await tester.ensureVisible(find.byType(BackButton));
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 
     // Habit is no longer archived → list is empty.

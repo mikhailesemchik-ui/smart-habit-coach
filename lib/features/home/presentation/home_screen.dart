@@ -14,6 +14,7 @@ import 'note_sheet.dart';
 import 'partial_reason_sheet.dart';
 import 'progress_entry_sheet.dart';
 import 'skip_reason_sheet.dart';
+import 'undo_snackbar.dart';
 
 const _weekdayNames = [
   'Monday',
@@ -87,39 +88,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _undoToken++;
     final token = _undoToken;
-    final theme = Theme.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    final controller = messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 18,
-              color: theme.colorScheme.surface,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(child: Text(message)),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primaryContainer,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onPressed: () {
-                _undo();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                }
-              },
-              child: const Text('Undo'),
-            ),
-          ],
-        ),
-        duration: const Duration(seconds: 4),
-      ),
-    );
-    controller.closed.then((_) {
+    showUndoSnackBar(
+      context,
+      message: message,
+      onUndo: _undo,
+      duration: const Duration(seconds: 4),
+    ).closed.then((_) {
       if (!mounted) return;
       if (token == _undoToken) {
         setState(() {

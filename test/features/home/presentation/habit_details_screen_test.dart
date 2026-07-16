@@ -759,6 +759,7 @@ void main() {
     await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -833,9 +834,16 @@ void main() {
       // Progress entry sheet should appear with target info
       expect(find.textContaining('3'), findsWidgets);
       expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      // Save is disabled while the amount field is empty.
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Save'))
+            .onPressed,
+        isNull,
+      );
 
-      // Saving 0 (empty field) clears progress, no partial reason sheet
-      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      // Explicit Reset clears progress to 0, no partial reason sheet.
+      await tester.tap(find.widgetWithText(TextButton, 'Reset'));
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(FilledButton, 'Save'), findsNothing);
@@ -874,6 +882,7 @@ void main() {
 
     // Enter partial value (1.5 of 3)
     await tester.enterText(find.byType(TextField).first, '1.5');
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
