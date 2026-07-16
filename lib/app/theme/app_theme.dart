@@ -70,6 +70,12 @@ class AppTheme {
     required Color textPrimary,
     required Color textSecondary,
   }) {
+    final navUnselectedColor = Color.lerp(
+      colorScheme.onSurfaceVariant,
+      colorScheme.onSurface,
+      0.5,
+    )!;
+
     return ThemeData(
       colorScheme: colorScheme,
       useMaterial3: true,
@@ -157,13 +163,36 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: AppRadii.largeRadius),
       ),
       navigationBarTheme: NavigationBarThemeData(
+        height: 64,
+        // White/near-white so the bar visually separates from the app's
+        // soft off-white page background instead of blending into it.
         backgroundColor: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
+        shadowColor: colorScheme.shadow.withValues(alpha: 0.15),
         indicatorColor: colorScheme.primaryContainer,
         indicatorShape: RoundedRectangleBorder(
           borderRadius: AppRadii.pillRadius,
         ),
-        elevation: 0,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        elevation: 2,
+        // Plain onSurfaceVariant read as too pale against the nav bar's
+        // background — blend it halfway toward onSurface for a darker,
+        // still-muted grey-green that stays clearly secondary to selected.
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? colorScheme.primary : navUnselectedColor,
+            size: 22,
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected ? colorScheme.primary : navUnselectedColor,
+          );
+        }),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: surfaceMuted,

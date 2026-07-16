@@ -112,137 +112,148 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final settings = widget.settings;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: AppRadii.largeRadius,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            Text(
+              'Profile',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: theme.colorScheme.surface,
-                  child: Text(
-                    settings.displayName.trim().isNotEmpty
-                        ? settings.displayName.trim()[0].toUpperCase()
-                        : '?',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: theme.colorScheme.primary,
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: AppRadii.largeRadius,
+              ),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: theme.colorScheme.surface,
+                    child: Text(
+                      settings.displayName.trim().isNotEmpty
+                          ? settings.displayName.trim()[0].toUpperCase()
+                          : '?',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  settings.displayName,
-                  key: const Key('profileDisplayName'),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    settings.displayName,
+                    key: const Key('profileDisplayName'),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.lg,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: AppRadii.largeRadius,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Display name', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _nameController,
-                  onChanged: _onDisplayNameChanged,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text('Theme', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                SegmentedButton<ThemeMode>(
-                  showSelectedIcon: false,
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    padding: WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(horizontal: 4),
-                    ),
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: AppRadii.largeRadius,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Display name', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _nameController,
+                    onChanged: _onDisplayNameChanged,
                   ),
-                  segments: const [
-                    ButtonSegment(
-                      value: ThemeMode.system,
-                      label: Text('System'),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('Theme', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<ThemeMode>(
+                    showSelectedIcon: false,
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      padding: WidgetStatePropertyAll(
+                        EdgeInsets.symmetric(horizontal: 4),
+                      ),
                     ),
-                    ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                    ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-                  ],
-                  selected: {settings.themeMode},
-                  onSelectionChanged: _onThemeModeChanged,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text('Start of week', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                SegmentedButton<StartOfWeek>(
-                  segments: const [
-                    ButtonSegment(
-                      value: StartOfWeek.monday,
-                      label: Text('Monday'),
-                    ),
-                    ButtonSegment(
-                      value: StartOfWeek.sunday,
-                      label: Text('Sunday'),
-                    ),
-                  ],
-                  selected: {settings.startOfWeek},
-                  onSelectionChanged: _onStartOfWeekChanged,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                const Divider(),
-                const SizedBox(height: AppSpacing.md),
-                Text('Notifications', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.sm),
-                _buildNotificationStatus(theme),
-              ],
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                    ],
+                    selected: {settings.themeMode},
+                    onSelectionChanged: _onThemeModeChanged,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('Start of week', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<StartOfWeek>(
+                    segments: const [
+                      ButtonSegment(
+                        value: StartOfWeek.monday,
+                        label: Text('Monday'),
+                      ),
+                      ButtonSegment(
+                        value: StartOfWeek.sunday,
+                        label: Text('Sunday'),
+                      ),
+                    ],
+                    selected: {settings.startOfWeek},
+                    onSelectionChanged: _onStartOfWeekChanged,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  const Divider(),
+                  const SizedBox(height: AppSpacing.md),
+                  Text('Notifications', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  _buildNotificationStatus(theme),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _ProfileEntryRow(
-            entryKey: profileAccountTileKey,
-            icon: Icons.account_circle_outlined,
-            title: 'Account',
-            subtitle: 'Link, sign in, or sign out',
-            onTap: _openAccount,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _ProfileEntryRow(
-            icon: Icons.archive_outlined,
-            title: 'Archived habits',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ArchivedHabitsScreen()),
+            const SizedBox(height: AppSpacing.lg),
+            _ProfileEntryRow(
+              entryKey: profileAccountTileKey,
+              icon: Icons.account_circle_outlined,
+              title: 'Account',
+              subtitle: 'Link, sign in, or sign out',
+              onTap: _openAccount,
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _ProfileEntryRow(
-            entryKey: profilePrivacyTileKey,
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy & data',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+            const SizedBox(height: AppSpacing.sm),
+            _ProfileEntryRow(
+              icon: Icons.archive_outlined,
+              title: 'Archived habits',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ArchivedHabitsScreen()),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: AppSpacing.sm),
+            _ProfileEntryRow(
+              entryKey: profilePrivacyTileKey,
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacy & data',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

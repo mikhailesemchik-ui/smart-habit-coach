@@ -110,34 +110,75 @@ class _ArchivedHabitsScreenState extends State<ArchivedHabitsScreen> {
     }
   }
 
+  // Header scrolls away with the rest of the page — it is deliberately NOT
+  // in Scaffold.appBar, which Flutter always pins above the body regardless
+  // of the body's own scrolling.
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        const BackButton(),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          'Archived habits',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // `bottom: false`: the gesture-bar inset is folded into the ListView's
+    // own padding below instead, so it scrolls away with the rest of the
+    // page rather than sitting as a fixed panel underneath it.
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final padding = EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset);
+
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Archived habits')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: SafeArea(
+          bottom: false,
+          child: ListView(
+            padding: padding,
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 24),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Archived habits')),
-      body: _archived.isEmpty
-          ? const Center(child: Text('No archived habits'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _archived.length,
-              itemBuilder: (context, index) {
-                final habit = _archived[index];
-                final isPending = _pendingIds.contains(habit.id);
-                return _ArchivedHabitTile(
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: padding,
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: AppSpacing.lg),
+            if (_archived.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No archived habits')),
+              )
+            else
+              for (final habit in _archived) ...[
+                _ArchivedHabitTile(
                   habit: habit,
-                  isBusy: isPending,
+                  isBusy: _pendingIds.contains(habit.id),
                   onTap: () => _openDetails(habit),
                   onRestore: () => _restore(habit),
                   onDelete: () => _confirmDelete(habit),
-                );
-              },
-            ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+          ],
+        ),
+      ),
     );
   }
 }
