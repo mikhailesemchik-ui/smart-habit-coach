@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Abstraction over establishing a Supabase auth session, so the
@@ -32,7 +33,13 @@ class SupabaseAuthSessionGateway implements AuthSessionGateway {
     try {
       await auth.signInAnonymously();
       return auth.currentSession != null;
-    } catch (_) {
+    } catch (e, st) {
+      // Diagnostic only — the UI still shows a generic retry screen
+      // regardless of cause. This surfaces the real error (e.g. a missing/
+      // empty SUPABASE_URL or SUPABASE_ANON_KEY dart-define, or anonymous
+      // sign-ins disabled on the Supabase project) instead of it looking
+      // indistinguishable from an actual offline device.
+      debugPrint('SupabaseAuthSessionGateway.ensureSession failed: $e\n$st');
       return false;
     }
   }
