@@ -288,7 +288,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final newHabit = await showModalBottomSheet<Habit>(
       context: context,
       isScrollControlled: true,
-      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => const AddHabitSheet(),
     );
@@ -312,7 +311,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final edited = await showModalBottomSheet<Habit>(
         context: context,
         isScrollControlled: true,
-        enableDrag: false,
         backgroundColor: Colors.transparent,
         builder: (_) => AddHabitSheet(initialHabit: result.habit),
       );
@@ -666,13 +664,13 @@ class _AnimatedProgressRingState extends State<_AnimatedProgressRing>
 
     return SizedBox(
       width: 44,
-      height: 44,
+      height: 40,
       child: Stack(
         alignment: Alignment.center,
         children: [
           SizedBox(
             width: 44,
-            height: 44,
+            height: 40,
             child: CircularProgressIndicator(
               value: _displayedValue,
               strokeWidth: 5,
@@ -752,7 +750,18 @@ class _HabitCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           PopupMenuButton<String>(
+            tooltip: 'Habit actions',
             icon: const Icon(Icons.more_vert),
+            color: theme.colorScheme.surfaceContainerHigh,
+            surfaceTintColor: theme.colorScheme.surfaceTint,
+            elevation: 10,
+            shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.28),
+            shape: RoundedRectangleBorder(
+              borderRadius: AppRadii.mediumRadius,
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            position: PopupMenuPosition.under,
+            constraints: const BoxConstraints(minWidth: 164),
             onSelected: (value) {
               if (value == 'skip') onSkipReason();
               if (value == 'note') onNote();
@@ -761,11 +770,21 @@ class _HabitCard extends StatelessWidget {
               if (status == HabitCompletionStatus.none)
                 const PopupMenuItem(
                   value: 'skip',
-                  child: Text('Why was it missed?'),
+                  height: 40,
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: _MenuActionRow(
+                    icon: Icons.help_outline,
+                    label: 'Why was it missed?',
+                  ),
                 ),
               PopupMenuItem(
                 value: 'note',
-                child: Text(note != null ? 'Edit note' : 'Add note'),
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: _MenuActionRow(
+                  icon: Icons.note_alt_outlined,
+                  label: note != null ? 'Edit note' : 'Add note',
+                ),
               ),
             ],
           ),
@@ -828,7 +847,18 @@ class _HabitCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           PopupMenuButton<String>(
+            tooltip: 'Habit actions',
             icon: const Icon(Icons.more_vert),
+            color: theme.colorScheme.surfaceContainerHigh,
+            surfaceTintColor: theme.colorScheme.surfaceTint,
+            elevation: 10,
+            shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.28),
+            shape: RoundedRectangleBorder(
+              borderRadius: AppRadii.mediumRadius,
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            position: PopupMenuPosition.under,
+            constraints: const BoxConstraints(minWidth: 188),
             onSelected: (value) {
               if (value == 'skip') onSkipReason();
               if (value == 'partial') onPartialReason();
@@ -838,16 +868,31 @@ class _HabitCard extends StatelessWidget {
               if (progress == 0 && !isComplete)
                 const PopupMenuItem(
                   value: 'skip',
-                  child: Text('Why was it missed?'),
+                  height: 40,
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: _MenuActionRow(
+                    icon: Icons.help_outline,
+                    label: 'Why was it missed?',
+                  ),
                 ),
               if (isPartial)
                 const PopupMenuItem(
                   value: 'partial',
-                  child: Text("Why wasn't the target reached?"),
+                  height: 40,
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: _MenuActionRow(
+                    icon: Icons.flag_outlined,
+                    label: "Why wasn't the target reached?",
+                  ),
                 ),
               PopupMenuItem(
                 value: 'note',
-                child: Text(note != null ? 'Edit note' : 'Add note'),
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: _MenuActionRow(
+                  icon: Icons.note_alt_outlined,
+                  label: note != null ? 'Edit note' : 'Add note',
+                ),
               ),
             ],
           ),
@@ -878,6 +923,32 @@ class _HabitCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MenuActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MenuActionRow({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

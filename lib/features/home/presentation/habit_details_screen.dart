@@ -244,7 +244,6 @@ class _HabitDetailsScreenState extends State<HabitDetailsScreen> {
     final updated = await showModalBottomSheet<Habit>(
       context: context,
       isScrollControlled: true,
-      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (_) => AddHabitSheet(initialHabit: _habit),
     );

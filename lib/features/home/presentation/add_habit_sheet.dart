@@ -50,12 +50,9 @@ class AddHabitSheet extends StatefulWidget {
   State<AddHabitSheet> createState() => _AddHabitSheetState();
 }
 
-class _AddHabitSheetState extends State<AddHabitSheet>
-    with SingleTickerProviderStateMixin {
+class _AddHabitSheetState extends State<AddHabitSheet> {
   final _formKey = GlobalKey<FormState>();
   final _scrollController = ScrollController();
-  late final AnimationController _dragResetController;
-  Animation<double>? _dragResetAnimation;
   late final TextEditingController _titleController;
   late final TextEditingController _minimumVersionController;
   late final TextEditingController _targetController;
@@ -67,22 +64,23 @@ class _AddHabitSheetState extends State<AddHabitSheet>
   late Set<int> _selectedWeekdays;
   late HabitTrackingType _trackingType;
   bool _weekdayError = false;
+  bool _dismissedFromHandle = false;
+
+  // Whether the form currently fits without scrolling. Only meaningful
+  // while `_isCompactDefaultState` holds — small screens can still need to
+  // scroll even in the default selection, so this is measured, not assumed.
   bool _canScroll = false;
   bool _scrollResetScheduled = false;
-  bool _handleDismissInProgress = false;
-  double _dragOffsetY = 0;
 
   bool get _isEditing => widget.initialHabit != null;
 
   static const double _compactScrollTolerance = 24;
-  static const double _handleDismissDistance = 96;
-  static const double _handleDismissVelocity = 700;
-  static const double _maxHandleDragOffset = 180;
 
   bool get _isCompactDefaultState =>
       _trackingType == HabitTrackingType.binary &&
       _everyDay &&
-      widget.requiredDaysPerWeek == null;
+      widget.requiredDaysPerWeek == null &&
+      !_weekdayError;
 
   bool get _isKeyboardClosed =>
       (MediaQuery.maybeOf(context)?.viewInsets.bottom ?? 0) == 0;
@@ -99,17 +97,30 @@ class _AddHabitSheetState extends State<AddHabitSheet>
     });
   }
 
+  bool _handleScrollMetrics(ScrollMetricsNotification notification) {
+    final isCompact = _isCompactDefaultState && _isKeyboardClosed;
+    final tolerance = isCompact ? _compactScrollTolerance : 0.5;
+    final canScroll = notification.metrics.maxScrollExtent > tolerance;
+    if (_canScroll != canScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _canScroll != canScroll) {
+          setState(() => _canScroll = canScroll);
+        }
+      });
+    }
+    _resetScrollOffsetIfNeeded(shouldReset: isCompact && !canScroll);
+    return false;
+  }
+
+  void _dismissFromHandle() {
+    if (_dismissedFromHandle) return;
+    _dismissedFromHandle = true;
+    Navigator.of(context).maybePop();
+  }
+
   @override
   void initState() {
     super.initState();
-    _dragResetController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    )..addListener(() {
-        final animation = _dragResetAnimation;
-        if (!mounted || animation == null) return;
-        setState(() => _dragOffsetY = animation.value);
-      });
     final initialHabit = widget.initialHabit;
     _titleController = TextEditingController(text: initialHabit?.title ?? '');
     _minimumVersionController = TextEditingController(
@@ -151,52 +162,7 @@ class _AddHabitSheetState extends State<AddHabitSheet>
     _targetController.dispose();
     _customUnitController.dispose();
     _scrollController.dispose();
-    _dragResetController.dispose();
     super.dispose();
-  }
-
-  void _dismissFromHandle() {
-    if (_handleDismissInProgress) return;
-    _handleDismissInProgress = true;
-    Navigator.of(context).maybePop();
-  }
-
-  void _handleHandleDragStart() {
-    _dragResetController.stop();
-  }
-
-  void _handleHandleDragUpdate(double deltaY) {
-    final nextOffset = (_dragOffsetY + deltaY)
-        .clamp(0.0, _maxHandleDragOffset)
-        .toDouble();
-    if (nextOffset == _dragOffsetY) return;
-    setState(() => _dragOffsetY = nextOffset);
-  }
-
-  void _handleHandleDragEnd(double velocityY) {
-    if (_dragOffsetY >= _handleDismissDistance ||
-        velocityY >= _handleDismissVelocity) {
-      _dismissFromHandle();
-      return;
-    }
-
-    if (_dragOffsetY <= 0.5) {
-      if (_dragOffsetY != 0) {
-        setState(() => _dragOffsetY = 0);
-      }
-      return;
-    }
-
-    _dragResetAnimation = Tween<double>(
-      begin: _dragOffsetY,
-      end: 0,
-    ).animate(
-      CurvedAnimation(
-        parent: _dragResetController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-    _dragResetController.forward(from: 0);
   }
 
   String _formatTime(TimeOfDay time) {
@@ -342,21 +308,6 @@ class _AddHabitSheetState extends State<AddHabitSheet>
     if (mounted) Navigator.of(context).pop(habit);
   }
 
-  bool _handleScrollMetrics(ScrollMetricsNotification notification) {
-    final isCompact = _isCompactDefaultState && _isKeyboardClosed;
-    final tolerance = isCompact ? _compactScrollTolerance : 0.5;
-    final canScroll = notification.metrics.maxScrollExtent > tolerance;
-    if (_canScroll != canScroll) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _canScroll != canScroll) {
-          setState(() => _canScroll = canScroll);
-        }
-      });
-    }
-    _resetScrollOffsetIfNeeded(shouldReset: isCompact && !canScroll);
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -366,20 +317,22 @@ class _AddHabitSheetState extends State<AddHabitSheet>
         ? mediaQuery.viewInsets.bottom
         : mediaQuery.viewPadding.bottom;
     final isKeyboardClosed = mediaQuery.viewInsets.bottom == 0;
-    final isCompact = _isCompactDefaultState && isKeyboardClosed;
-    final allowInternalScroll = !isCompact || _canScroll;
     final footerBottomPadding =
         bottomInset + (isKeyboardClosed ? AppSpacing.xl : AppSpacing.md);
+    final isCompact = _isCompactDefaultState && isKeyboardClosed;
+    final allowInternalScroll = !isCompact || _canScroll;
     _resetScrollOffsetIfNeeded(shouldReset: isCompact && !allowInternalScroll);
 
     // One clipped Material owns both the top shape and the sheet surface.
     // The bottom system inset is handled inside the footer spacing, not by
     // a root SafeArea, so there is no separate safe-area block painted
-    // below Save/Cancel.
-    return Transform.translate(
-      offset: Offset(0, _dragOffsetY),
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value:
+    // below Save/Cancel. In the default compact selection (binary, every
+    // day, no errors, keyboard closed) internal scrolling is disabled via
+    // NeverScrollableScrollPhysics so there's no micro-scroll wiggle; a
+    // measured maxScrollExtent still re-enables it if a small screen makes
+    // even the compact content overflow.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value:
           (theme.brightness == Brightness.dark
                   ? SystemUiOverlayStyle.light
                   : SystemUiOverlayStyle.dark)
@@ -392,13 +345,13 @@ class _AddHabitSheetState extends State<AddHabitSheet>
                     : Brightness.dark,
                 systemNavigationBarContrastEnforced: false,
               ),
-        child: Material(
-          color: theme.colorScheme.surface,
-          shape: const RoundedRectangleBorder(
-            borderRadius: AppRadii.sheetTopRadius,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: ConstrainedBox(
+      child: Material(
+        color: theme.colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadii.sheetTopRadius,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: Padding(
             padding: const EdgeInsets.only(
@@ -419,12 +372,7 @@ class _AddHabitSheetState extends State<AddHabitSheet>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _DragHandle(
-                        onDismiss: _dismissFromHandle,
-                        onDragStart: _handleHandleDragStart,
-                        onDragUpdate: _handleHandleDragUpdate,
-                        onDragEnd: _handleHandleDragEnd,
-                      ),
+                      _DragHandle(onDismiss: _dismissFromHandle),
                       Text(
                         _isEditing ? 'Edit habit' : 'Add habit',
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -694,9 +642,7 @@ class _AddHabitSheetState extends State<AddHabitSheet>
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       Padding(
-                        padding: EdgeInsets.only(
-                          bottom: footerBottomPadding,
-                        ),
+                        padding: EdgeInsets.only(bottom: footerBottomPadding),
                         child: Row(
                           children: [
                             Expanded(
@@ -724,68 +670,47 @@ class _AddHabitSheetState extends State<AddHabitSheet>
           ),
         ),
       ),
-      ),
     );
   }
 }
 
-/// Small centered drag handle shown at the top of a bottom sheet.
-class _DragHandle extends StatefulWidget {
+/// Drag handle shown at the top of a bottom sheet. Its size and position
+/// are unchanged from the plain decorative version — no invisible padding
+/// was added — so it does not encroach toward the status bar and does not
+/// shift the layout below it. It only adds a *tap*-to-dismiss shortcut: a
+/// tap gesture doesn't compete with the modal route's native vertical-drag
+/// recognizer (different gesture types), so swipe-to-dismiss on the handle
+/// still works exactly as before through the framework's own `enableDrag`.
+class _DragHandle extends StatelessWidget {
   final VoidCallback onDismiss;
-  final VoidCallback onDragStart;
-  final ValueChanged<double> onDragUpdate;
-  final ValueChanged<double> onDragEnd;
 
-  const _DragHandle({
-    required this.onDismiss,
-    required this.onDragStart,
-    required this.onDragUpdate,
-    required this.onDragEnd,
-  });
-
-  @override
-  State<_DragHandle> createState() => _DragHandleState();
-}
-
-class _DragHandleState extends State<_DragHandle> {
-  bool _dismissed = false;
-
-  void _dismiss() {
-    if (_dismissed) return;
-    _dismissed = true;
-    widget.onDismiss();
-  }
+  const _DragHandle({required this.onDismiss});
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Close habit sheet',
+      label: 'Close add habit sheet',
       child: GestureDetector(
+        // Opaque so the tap registers anywhere in this existing padded
+        // area (not just the exact 36x4 pill pixels) without growing it.
         behavior: HitTestBehavior.opaque,
-        onTap: _dismiss,
-        onVerticalDragStart: (_) => widget.onDragStart(),
-        onVerticalDragUpdate: (details) {
-          final delta = details.primaryDelta;
-          if (delta != null) {
-            widget.onDragUpdate(delta);
-          }
-        },
-        onVerticalDragEnd: (details) {
-          widget.onDragEnd(details.primaryVelocity ?? 0);
-        },
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.only(
-              top: AppSpacing.xs,
-              bottom: AppSpacing.md,
-            ),
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline,
-                borderRadius: AppRadii.pillRadius,
+        onTap: onDismiss,
+        child: SizedBox(
+          width: double.infinity,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outline,
+                  borderRadius: AppRadii.pillRadius,
+                ),
               ),
             ),
           ),
