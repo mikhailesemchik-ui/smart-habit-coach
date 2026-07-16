@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -71,7 +72,9 @@ Color _statusForeground(BuildContext context, AdaptiveSuggestionStatus status) {
       return scheme.onSecondaryContainer;
     case AdaptiveSuggestionStatus.kept:
     case AdaptiveSuggestionStatus.rejected:
-      return scheme.onSurfaceVariant;
+      // Darker than onSurfaceVariant: that muted gray was reported as
+      // blending into the surfaceContainerHighest pill background.
+      return scheme.onSurface;
   }
 }
 
@@ -119,34 +122,102 @@ class _CoachInsightsScreenState extends State<CoachInsightsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Coach Insights')),
-      body: RefreshIndicator(onRefresh: _load, child: _buildBody()),
+    final theme = Theme.of(context);
+
+    // Without this, Android paints its default (opaque) gesture-bar
+    // background instead of blending with the page — the same fix already
+    // applied to the Add Habit and Note bottom sheets.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value:
+          (theme.brightness == Brightness.dark
+                  ? SystemUiOverlayStyle.light
+                  : SystemUiOverlayStyle.dark)
+              .copyWith(
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarDividerColor: Colors.transparent,
+                systemNavigationBarIconBrightness:
+                    theme.brightness == Brightness.dark
+                    ? Brightness.light
+                    : Brightness.dark,
+                systemNavigationBarContrastEnforced: false,
+              ),
+      child: Scaffold(
+        // `bottom: false`: the gesture-bar inset is folded into the
+        // ListView's own padding below instead, so it scrolls away with the
+        // rest of the page rather than sitting as a fixed panel underneath it.
+        body: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: _buildBody(MediaQuery.of(context).padding.bottom),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildBody() {
+  // Header scrolls away with the rest of the page — it is deliberately NOT
+  // in Scaffold.appBar, which Flutter always pins above the body regardless
+  // of the body's own scrolling.
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        const BackButton(),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          'Coach Insights',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody(double bottomInset) {
+    final padding = EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset);
+
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: padding,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 24),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      );
     }
     if (_hasError) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: [_ErrorState(onRetry: _load)],
+        padding: padding,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 16),
+          _ErrorState(onRetry: _load),
+        ],
       );
     }
     if (_groups.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [_EmptyState()],
+        padding: padding,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 16),
+          const _EmptyState(),
+        ],
       );
     }
 
     final habits = _result!.habits;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+      padding: padding,
       children: [
+        _buildHeader(context),
+        const SizedBox(height: 16),
         Text(
           'Your habit plan adjustments and recent coaching history',
           style: Theme.of(context).textTheme.bodyMedium,
@@ -235,7 +306,7 @@ class _CoachInsightCard extends StatelessWidget {
             Text(
               formatCoachInsightsDate(suggestion.createdAt),
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),

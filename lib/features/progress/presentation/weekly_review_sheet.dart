@@ -223,35 +223,39 @@ class _WeeklyReviewSheetState extends State<WeeklyReviewSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outline,
-                  borderRadius: AppRadii.pillRadius,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outline,
+                    borderRadius: AppRadii.pillRadius,
+                  ),
                 ),
               ),
-            ),
-            Text(
-              'Weekly Review',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              Text(
+                'Weekly Review',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _buildBody(theme),
-          ],
+              const SizedBox(height: AppSpacing.lg),
+              _buildBody(theme),
+            ],
+          ),
         ),
       ),
     );

@@ -101,6 +101,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final metrics = calculateWeeklyReviewMetrics(activeHabits, now);
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (_) => WeeklyReviewSheet(
         localReview: localReview,
         metrics: metrics,
@@ -122,45 +123,50 @@ class _ProgressScreenState extends State<ProgressScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Progress')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_habits.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Progress')),
-        body: const Center(child: Text('Add a habit to see your progress')),
+      return const Scaffold(
+        body: Center(child: Text('Add a habit to see your progress')),
       );
     }
 
     final now = DateTime.now();
     // Paused and archived habits are excluded from all Progress calculations.
     final activeHabits = _habits.where((h) => h.isActive).toList();
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Progress')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          _StatsCard(
-            rate: weeklyCompletionRate(activeHabits, now),
-            streak: currentStreak(activeHabits, now),
-            bestStreak: bestStreak(activeHabits, now),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _WeekSummary(
-            habits: activeHabits,
-            days: last7Days(now),
-            onDayTap: _openDayHistory,
-            onOpenCalendar: _openCalendar,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _WeeklyReviewCard(onOpenReview: _openWeeklyReview),
-          const SizedBox(height: AppSpacing.md),
-          _CoachInsightsEntry(onTap: _openCoachInsights),
-        ],
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            Text(
+              'Progress',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _StatsCard(
+              rate: weeklyCompletionRate(activeHabits, now),
+              streak: currentStreak(activeHabits, now),
+              bestStreak: bestStreak(activeHabits, now),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _WeekSummary(
+              habits: activeHabits,
+              days: last7Days(now),
+              onDayTap: _openDayHistory,
+              onOpenCalendar: _openCalendar,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _WeeklyReviewCard(onOpenReview: _openWeeklyReview),
+            const SizedBox(height: AppSpacing.md),
+            _CoachInsightsEntry(onTap: _openCoachInsights),
+          ],
+        ),
       ),
     );
   }
@@ -421,7 +427,7 @@ class _WeekSummary extends StatelessWidget {
         children: [
           Row(
             children: [
-              Flexible(
+              Expanded(
                 child: Text(
                   'This week',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -429,14 +435,17 @@ class _WeekSummary extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(
+              TextButton.icon(
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: onOpenCalendar,
-                child: const Text('View calendar'),
+                icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                label: const Text('Calendar'),
               ),
             ],
           ),

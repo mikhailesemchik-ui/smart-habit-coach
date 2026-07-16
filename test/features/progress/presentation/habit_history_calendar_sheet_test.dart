@@ -78,21 +78,27 @@ void main() {
   // ── Widget tests: ProgressScreen entry point ───────────────────────────────
 
   // Test 1: button is visible
-  testWidgets('View calendar button is visible in the This week card', (
+  testWidgets('Calendar button is visible in the This week card', (
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(TextButton, 'View calendar'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.text('Calendar'),
+        matching: find.byWidgetPredicate((w) => w is TextButton),
+      ),
+      findsOneWidget,
+    );
   });
 
   // Test 2: tapping button opens the calendar sheet
-  testWidgets('tapping View calendar opens the calendar sheet', (tester) async {
+  testWidgets('tapping Calendar opens the calendar sheet', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: ProgressScreen()));
     await tester.pumpAndSettle();
 
-    final viewCalendarText = find.text('View calendar');
+    final viewCalendarText = find.text('Calendar');
     expect(viewCalendarText, findsOneWidget);
 
     await tester.ensureVisible(viewCalendarText);
@@ -310,8 +316,8 @@ void main() {
     expect(find.text('No habits scheduled'), findsOneWidget);
   });
 
-  // Test 16: View calendar label does not overflow on a narrow Progress screen
-  testWidgets('View calendar button does not overflow on a narrow screen', (
+  // Test 16: Calendar label does not overflow on a narrow Progress screen
+  testWidgets('Calendar button does not overflow on a narrow screen', (
     tester,
   ) async {
     addTearDown(tester.view.reset);
@@ -322,6 +328,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.widgetWithText(TextButton, 'View calendar'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.text('Calendar'),
+        matching: find.byWidgetPredicate((w) => w is TextButton),
+      ),
+      findsOneWidget,
+    );
   });
 }
