@@ -43,10 +43,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Clear the minimum version field.
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Minimum version (optional)'),
-        '',
-      );
+      await tester.enterText(find.byKey(minimumVersionFieldKey), '');
       await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
@@ -98,10 +95,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Minimum version (optional)'),
-        '',
-      );
+      await tester.enterText(find.byKey(minimumVersionFieldKey), '');
       await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
@@ -156,10 +150,7 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Minimum version (optional)'),
-      '',
-    );
+    await tester.enterText(find.byKey(minimumVersionFieldKey), '');
     await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
@@ -208,7 +199,7 @@ void main() {
 
       // Add a minimumVersion.
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Minimum version (optional)'),
+        find.byKey(minimumVersionFieldKey),
         'Light stretch',
       );
       await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));

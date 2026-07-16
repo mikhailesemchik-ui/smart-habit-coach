@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -6,6 +7,18 @@ import '../domain/date_key.dart';
 import '../domain/habit.dart';
 import '../domain/habit_icons.dart';
 import '../domain/scheduled_time.dart';
+
+/// Public so tests can locate this field without depending on its label
+/// or hint text, since the field now shows only a hint (never a label)
+/// and its displayed text may equal neither when pre-filled.
+const minimumVersionFieldKey = Key('minimumVersionField');
+
+/// Public so tests can locate these fields without depending on label
+/// text, since Amount-mode fields now use external labels (a plain
+/// sibling Text above each field, per the design) instead of an internal
+/// InputDecoration label.
+const dailyTargetFieldKey = Key('dailyTargetField');
+const customUnitFieldKey = Key('customUnitField');
 
 final _iconOptions = habitIconOptions.values.toList();
 
@@ -37,8 +50,12 @@ class AddHabitSheet extends StatefulWidget {
   State<AddHabitSheet> createState() => _AddHabitSheetState();
 }
 
-class _AddHabitSheetState extends State<AddHabitSheet> {
+class _AddHabitSheetState extends State<AddHabitSheet>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
+  late final AnimationController _dragResetController;
+  Animation<double>? _dragResetAnimation;
   late final TextEditingController _titleController;
   late final TextEditingController _minimumVersionController;
   late final TextEditingController _targetController;
@@ -50,12 +67,49 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   late Set<int> _selectedWeekdays;
   late HabitTrackingType _trackingType;
   bool _weekdayError = false;
+  bool _canScroll = false;
+  bool _scrollResetScheduled = false;
+  bool _handleDismissInProgress = false;
+  double _dragOffsetY = 0;
 
   bool get _isEditing => widget.initialHabit != null;
+
+  static const double _compactScrollTolerance = 24;
+  static const double _handleDismissDistance = 96;
+  static const double _handleDismissVelocity = 700;
+  static const double _maxHandleDragOffset = 180;
+
+  bool get _isCompactDefaultState =>
+      _trackingType == HabitTrackingType.binary &&
+      _everyDay &&
+      widget.requiredDaysPerWeek == null;
+
+  bool get _isKeyboardClosed =>
+      (MediaQuery.maybeOf(context)?.viewInsets.bottom ?? 0) == 0;
+
+  void _resetScrollOffsetIfNeeded({required bool shouldReset}) {
+    if (!shouldReset || _scrollResetScheduled) return;
+    _scrollResetScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollResetScheduled = false;
+      if (!mounted || !_scrollController.hasClients) return;
+      if (_scrollController.offset > 0.5) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _dragResetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..addListener(() {
+        final animation = _dragResetAnimation;
+        if (!mounted || animation == null) return;
+        setState(() => _dragOffsetY = animation.value);
+      });
     final initialHabit = widget.initialHabit;
     _titleController = TextEditingController(text: initialHabit?.title ?? '');
     _minimumVersionController = TextEditingController(
@@ -96,7 +150,53 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     _minimumVersionController.dispose();
     _targetController.dispose();
     _customUnitController.dispose();
+    _scrollController.dispose();
+    _dragResetController.dispose();
     super.dispose();
+  }
+
+  void _dismissFromHandle() {
+    if (_handleDismissInProgress) return;
+    _handleDismissInProgress = true;
+    Navigator.of(context).maybePop();
+  }
+
+  void _handleHandleDragStart() {
+    _dragResetController.stop();
+  }
+
+  void _handleHandleDragUpdate(double deltaY) {
+    final nextOffset = (_dragOffsetY + deltaY)
+        .clamp(0.0, _maxHandleDragOffset)
+        .toDouble();
+    if (nextOffset == _dragOffsetY) return;
+    setState(() => _dragOffsetY = nextOffset);
+  }
+
+  void _handleHandleDragEnd(double velocityY) {
+    if (_dragOffsetY >= _handleDismissDistance ||
+        velocityY >= _handleDismissVelocity) {
+      _dismissFromHandle();
+      return;
+    }
+
+    if (_dragOffsetY <= 0.5) {
+      if (_dragOffsetY != 0) {
+        setState(() => _dragOffsetY = 0);
+      }
+      return;
+    }
+
+    _dragResetAnimation = Tween<double>(
+      begin: _dragOffsetY,
+      end: 0,
+    ).animate(
+      CurvedAnimation(
+        parent: _dragResetController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _dragResetController.forward(from: 0);
   }
 
   String _formatTime(TimeOfDay time) {
@@ -242,306 +342,453 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     if (mounted) Navigator.of(context).pop(habit);
   }
 
+  bool _handleScrollMetrics(ScrollMetricsNotification notification) {
+    final isCompact = _isCompactDefaultState && _isKeyboardClosed;
+    final tolerance = isCompact ? _compactScrollTolerance : 0.5;
+    final canScroll = notification.metrics.maxScrollExtent > tolerance;
+    if (_canScroll != canScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _canScroll != canScroll) {
+          setState(() => _canScroll = canScroll);
+        }
+      });
+    }
+    _resetScrollOffsetIfNeeded(shouldReset: isCompact && !canScroll);
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
-    final maxHeight = mediaQuery.size.height * 0.92;
-    // Accounts for both the on-screen keyboard (viewInsets) and the
-    // permanent system gesture/navigation bar (viewPadding) — using only
-    // one of the two either clips the footer behind the nav bar when the
-    // keyboard is closed, or leaves it too high once the keyboard opens.
-    // The Container background (matching the bottom sheet's own surface
-    // color) paints all the way through that inset too, so there is no
-    // mismatched strip of the screen's default background showing below
-    // the footer.
+    final maxHeight = mediaQuery.size.height * 0.95;
     final bottomInset = mediaQuery.viewInsets.bottom > 0
         ? mediaQuery.viewInsets.bottom
         : mediaQuery.viewPadding.bottom;
+    final isKeyboardClosed = mediaQuery.viewInsets.bottom == 0;
+    final isCompact = _isCompactDefaultState && isKeyboardClosed;
+    final allowInternalScroll = !isCompact || _canScroll;
+    final footerBottomPadding =
+        bottomInset + (isKeyboardClosed ? AppSpacing.xl : AppSpacing.md);
+    _resetScrollOffsetIfNeeded(shouldReset: isCompact && !allowInternalScroll);
 
-    return Container(
-      color: theme.colorScheme.surface,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.md,
-            bottom: AppSpacing.md + bottomInset,
+    // One clipped Material owns both the top shape and the sheet surface.
+    // The bottom system inset is handled inside the footer spacing, not by
+    // a root SafeArea, so there is no separate safe-area block painted
+    // below Save/Cancel.
+    return Transform.translate(
+      offset: Offset(0, _dragOffsetY),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value:
+          (theme.brightness == Brightness.dark
+                  ? SystemUiOverlayStyle.light
+                  : SystemUiOverlayStyle.dark)
+              .copyWith(
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarDividerColor: Colors.transparent,
+                systemNavigationBarIconBrightness:
+                    theme.brightness == Brightness.dark
+                    ? Brightness.light
+                    : Brightness.dark,
+                systemNavigationBarContrastEnforced: false,
+              ),
+        child: Material(
+          color: theme.colorScheme.surface,
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppRadii.sheetTopRadius,
           ),
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _DragHandle(),
-                  Text(
-                    _isEditing ? 'Edit habit' : 'Add habit',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _FormSection(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextFormField(
-                          controller: _titleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Habit title',
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Title cannot be empty';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        _ScheduledTimeRow(
-                          time: _formatTime(_selectedTime),
-                          onTap: _pickTime,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  const _SectionLabel('Icon'),
-                  const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.lg,
+              right: AppSpacing.lg,
+              top: AppSpacing.md,
+            ),
+            child: Form(
+              key: _formKey,
+              child: NotificationListener<ScrollMetricsNotification>(
+                onNotification: _handleScrollMetrics,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: allowInternalScroll
+                      ? const ClampingScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final icon in _iconOptions)
-                        _IconChoice(
-                          icon: icon,
-                          selected: icon == _selectedIcon,
-                          onTap: () => setState(() => _selectedIcon = icon),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  const _SectionLabel('Tracking'),
-                  const SizedBox(height: AppSpacing.sm),
-                  SegmentedButton<HabitTrackingType>(
-                    style: _segmentedStyle(theme),
-                    segments: const [
-                      ButtonSegment(
-                        value: HabitTrackingType.binary,
-                        label: Text('Binary'),
+                      _DragHandle(
+                        onDismiss: _dismissFromHandle,
+                        onDragStart: _handleHandleDragStart,
+                        onDragUpdate: _handleHandleDragUpdate,
+                        onDragEnd: _handleHandleDragEnd,
                       ),
-                      ButtonSegment(
-                        value: HabitTrackingType.quantitative,
-                        label: Text('Amount'),
+                      Text(
+                        _isEditing ? 'Edit habit' : 'Add habit',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ],
-                    selected: {_trackingType},
-                    onSelectionChanged: (selection) {
-                      setState(() => _trackingType = selection.first);
-                    },
-                  ),
-                  if (_trackingType == HabitTrackingType.quantitative) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _targetController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Daily target',
-                            ),
-                            validator: _validateTarget,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: _selectedPreset,
-                            decoration: const InputDecoration(
-                              labelText: 'Unit',
-                            ),
-                            items: [
-                              ..._unitPresets.map(
-                                (u) =>
-                                    DropdownMenuItem(value: u, child: Text(u)),
+                      const SizedBox(height: AppSpacing.md),
+                      _FormSection(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _titleController,
+                              decoration: const InputDecoration(
+                                labelText: 'Habit title',
                               ),
-                              const DropdownMenuItem(
-                                value: _customPreset,
-                                child: Text(_customPreset),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _selectedPreset = value);
-                              }
-                            },
-                          ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Title cannot be empty';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            _ScheduledTimeRow(
+                              time: _formatTime(_selectedTime),
+                              onTap: _pickTime,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    if (_selectedPreset == _customPreset) ...[
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      const _SectionLabel('Icon'),
                       const SizedBox(height: AppSpacing.sm),
-                      TextFormField(
-                        controller: _customUnitController,
-                        decoration: const InputDecoration(
-                          labelText: 'Custom unit',
-                          hintText: 'e.g. glasses, sessions',
-                        ),
-                        maxLength: 20,
-                        buildCounter:
-                            (
-                              _, {
-                              required currentLength,
-                              required isFocused,
-                              required maxLength,
-                            }) => null,
-                        validator: (value) {
-                          if (_selectedPreset != _customPreset) return null;
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Required';
-                          }
-                          return null;
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          for (final icon in _iconOptions)
+                            _IconChoice(
+                              icon: icon,
+                              selected: icon == _selectedIcon,
+                              onTap: () => setState(() => _selectedIcon = icon),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      const _SectionLabel('Tracking'),
+                      const SizedBox(height: AppSpacing.sm),
+                      SegmentedButton<HabitTrackingType>(
+                        style: _segmentedStyle(theme),
+                        segments: const [
+                          ButtonSegment(
+                            value: HabitTrackingType.binary,
+                            label: Text('Binary'),
+                          ),
+                          ButtonSegment(
+                            value: HabitTrackingType.quantitative,
+                            label: Text('Amount'),
+                          ),
+                        ],
+                        selected: {_trackingType},
+                        onSelectionChanged: (selection) {
+                          setState(() {
+                            _trackingType = selection.first;
+                            if (_isCompactDefaultState && _isKeyboardClosed) {
+                              _canScroll = false;
+                            }
+                          });
+                          _resetScrollOffsetIfNeeded(
+                            shouldReset:
+                                _isCompactDefaultState && _isKeyboardClosed,
+                          );
                         },
                       ),
-                    ],
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  const _SectionLabel('Repeat'),
-                  if (widget.requiredDaysPerWeek != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Select exactly ${widget.requiredDaysPerWeek} '
-                      '${widget.requiredDaysPerWeek == 1 ? "day" : "days"}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  if (widget.requiredDaysPerWeek == null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    SegmentedButton<bool>(
-                      style: _segmentedStyle(theme),
-                      segments: const [
-                        ButtonSegment(value: true, label: Text('Every day')),
-                        ButtonSegment(
-                          value: false,
-                          label: Text('Specific days'),
+                      if (_trackingType == HabitTrackingType.quantitative) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const _FieldLabel('Daily target'),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  TextFormField(
+                                    key: dailyTargetFieldKey,
+                                    controller: _targetController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: const InputDecoration(
+                                      hintText: 'e.g. 30',
+                                    ),
+                                    validator: _validateTarget,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const _FieldLabel('Unit'),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    initialValue: _selectedPreset,
+                                    decoration: const InputDecoration(),
+                                    items: [
+                                      ..._unitPresets.map(
+                                        (u) => DropdownMenuItem(
+                                          value: u,
+                                          child: Text(u),
+                                        ),
+                                      ),
+                                      const DropdownMenuItem(
+                                        value: _customPreset,
+                                        child: Text(_customPreset),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _selectedPreset = value);
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                      selected: {_everyDay},
-                      onSelectionChanged: (selection) {
-                        setState(() {
-                          _everyDay = selection.first;
-                          _weekdayError = false;
-                        });
-                      },
-                    ),
-                  ],
-                  if (!_everyDay) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      spacing: AppSpacing.xs,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        for (var i = 1; i <= 7; i++)
-                          FilterChip(
-                            label: Text(_weekdayLabels[i - 1]),
-                            selected: _selectedWeekdays.contains(i),
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedWeekdays.add(i);
-                                } else {
-                                  _selectedWeekdays.remove(i);
-                                }
-                                _weekdayError = false;
-                              });
+                        if (_selectedPreset == _customPreset) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          const _FieldLabel('Custom unit'),
+                          const SizedBox(height: AppSpacing.xs),
+                          TextFormField(
+                            key: customUnitFieldKey,
+                            controller: _customUnitController,
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. glasses, sessions',
+                            ),
+                            maxLength: 20,
+                            buildCounter:
+                                (
+                                  _, {
+                                  required currentLength,
+                                  required isFocused,
+                                  required maxLength,
+                                }) => null,
+                            validator: (value) {
+                              if (_selectedPreset != _customPreset) {
+                                return null;
+                              }
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              return null;
                             },
                           ),
+                        ],
                       ],
-                    ),
-                    if (_weekdayError)
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.xs),
-                        child: Text(
-                          _weekdayErrorText,
+                      const SizedBox(height: AppSpacing.md),
+                      const _SectionLabel('Repeat'),
+                      if (widget.requiredDaysPerWeek != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Select exactly ${widget.requiredDaysPerWeek} '
+                          '${widget.requiredDaysPerWeek == 1 ? "day" : "days"}',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.error,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  const _SectionLabel('Minimum version'),
-                  const SizedBox(height: 2),
-                  Text(
-                    'An easier version for difficult days (optional)',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextFormField(
-                    controller: _minimumVersionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Minimum version (optional)',
-                      hintText: '5 minutes of stretching',
-                    ),
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
+                      ],
+                      if (widget.requiredDaysPerWeek == null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        SegmentedButton<bool>(
+                          style: _segmentedStyle(theme),
+                          segments: const [
+                            ButtonSegment(
+                              value: true,
+                              label: Text('Every day'),
+                            ),
+                            ButtonSegment(
+                              value: false,
+                              label: Text('Specific days'),
+                            ),
+                          ],
+                          selected: {_everyDay},
+                          onSelectionChanged: (selection) {
+                            setState(() {
+                              _everyDay = selection.first;
+                              _weekdayError = false;
+                              if (_isCompactDefaultState && _isKeyboardClosed) {
+                                _canScroll = false;
+                              }
+                            });
+                            _resetScrollOffsetIfNeeded(
+                              shouldReset:
+                                  _isCompactDefaultState && _isKeyboardClosed,
+                            );
+                          },
+                        ),
+                      ],
+                      if (!_everyDay) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: [
+                            for (var i = 1; i <= 7; i++)
+                              FilterChip(
+                                label: Text(_weekdayLabels[i - 1]),
+                                labelPadding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.xs,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                selected: _selectedWeekdays.contains(i),
+                                onSelected: (selected) {
+                                  setState(() {
+                                    if (selected) {
+                                      _selectedWeekdays.add(i);
+                                    } else {
+                                      _selectedWeekdays.remove(i);
+                                    }
+                                    _weekdayError = false;
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                        if (_weekdayError)
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.xs),
+                            child: Text(
+                              _weekdayErrorText,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      const _SectionLabel('Minimum version'),
+                      const SizedBox(height: 2),
+                      Text(
+                        'An easier version for difficult days (optional)',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        flex: 2,
-                        child: FilledButton(
-                          onPressed: _save,
-                          child: const Text('Save'),
+                      const SizedBox(height: AppSpacing.sm),
+                      TextFormField(
+                        key: minimumVersionFieldKey,
+                        controller: _minimumVersionController,
+                        decoration: const InputDecoration(
+                          hintText: 'e.g. 5 minutes of stretching',
+                        ),
+                        maxLines: 1,
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      Padding(
+                        padding: EdgeInsets.only(
+                          bottom: footerBottomPadding,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              flex: 2,
+                              child: FilledButton(
+                                onPressed: _save,
+                                child: const Text('Save'),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         ),
+      ),
       ),
     );
   }
 }
 
 /// Small centered drag handle shown at the top of a bottom sheet.
-class _DragHandle extends StatelessWidget {
-  const _DragHandle();
+class _DragHandle extends StatefulWidget {
+  final VoidCallback onDismiss;
+  final VoidCallback onDragStart;
+  final ValueChanged<double> onDragUpdate;
+  final ValueChanged<double> onDragEnd;
+
+  const _DragHandle({
+    required this.onDismiss,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+  });
+
+  @override
+  State<_DragHandle> createState() => _DragHandleState();
+}
+
+class _DragHandleState extends State<_DragHandle> {
+  bool _dismissed = false;
+
+  void _dismiss() {
+    if (_dismissed) return;
+    _dismissed = true;
+    widget.onDismiss();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 36,
-        height: 4,
-        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.outline,
-          borderRadius: AppRadii.pillRadius,
+    return Semantics(
+      button: true,
+      label: 'Close habit sheet',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _dismiss,
+        onVerticalDragStart: (_) => widget.onDragStart(),
+        onVerticalDragUpdate: (details) {
+          final delta = details.primaryDelta;
+          if (delta != null) {
+            widget.onDragUpdate(delta);
+          }
+        },
+        onVerticalDragEnd: (details) {
+          widget.onDragEnd(details.primaryVelocity ?? 0);
+        },
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.only(
+              top: AppSpacing.xs,
+              bottom: AppSpacing.md,
+            ),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline,
+                borderRadius: AppRadii.pillRadius,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -561,6 +808,28 @@ class _SectionLabel extends StatelessWidget {
       style: Theme.of(
         context,
       ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+/// Small external label shown above a single form field (as opposed to
+/// [_SectionLabel], which heads a whole group). Kept as a plain sibling
+/// Text — not an InputDecoration.labelText — so it never floats into or
+/// collides with the field's own border.
+class _FieldLabel extends StatelessWidget {
+  final String label;
+
+  const _FieldLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      label,
+      style: theme.textTheme.bodySmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

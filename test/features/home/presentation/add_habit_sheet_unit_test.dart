@@ -74,10 +74,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Enter target
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Daily target'),
-      '3',
-    );
+    await tester.enterText(find.byKey(dailyTargetFieldKey), '3');
 
     // Select 'L' in the dropdown (it's already showing 'min' as first preset)
     await tester.ensureVisible(find.text('min'));
@@ -111,7 +108,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Custom unit text field is visible with the existing value
-    expect(find.widgetWithText(TextFormField, 'Custom unit'), findsOneWidget);
+    expect(find.byKey(customUnitFieldKey), findsOneWidget);
     expect(find.text('sessions'), findsWidgets);
   });
 
@@ -124,7 +121,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // With 'min' selected (default preset), no custom unit field
-    expect(find.widgetWithText(TextFormField, 'Custom unit'), findsNothing);
+    expect(find.byKey(customUnitFieldKey), findsNothing);
   });
 
   // Test: existing preset unit loads in preset selection
@@ -147,7 +144,7 @@ void main() {
     // The 'steps' preset should be shown as the current value
     expect(find.text('steps'), findsWidgets);
     // No custom unit field visible
-    expect(find.widgetWithText(TextFormField, 'Custom unit'), findsNothing);
+    expect(find.byKey(customUnitFieldKey), findsNothing);
   });
 
   // Test: existing custom unit loads in Custom mode with text filled
@@ -168,7 +165,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Custom unit field appears with pre-filled value
-    expect(find.widgetWithText(TextFormField, 'Custom unit'), findsOneWidget);
+    expect(find.byKey(customUnitFieldKey), findsOneWidget);
     expect(find.text('sessions'), findsWidgets);
   });
 

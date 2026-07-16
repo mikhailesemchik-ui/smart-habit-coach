@@ -288,6 +288,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final newHabit = await showModalBottomSheet<Habit>(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
       builder: (_) => const AddHabitSheet(),
     );
 
@@ -310,6 +312,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final edited = await showModalBottomSheet<Habit>(
         context: context,
         isScrollControlled: true,
+        enableDrag: false,
+        backgroundColor: Colors.transparent,
         builder: (_) => AddHabitSheet(initialHabit: result.habit),
       );
       if (edited == null) return;
