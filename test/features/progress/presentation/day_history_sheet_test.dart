@@ -284,6 +284,7 @@ void main() {
 
     // Enter value in progress entry sheet
     await tester.enterText(find.byType(TextField).first, '2.5');
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -306,6 +307,7 @@ void main() {
     await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too difficult'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -369,6 +371,7 @@ void main() {
       await tester.tap(find.text("Why wasn't the target reached?"));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Too tired'));
+      await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 

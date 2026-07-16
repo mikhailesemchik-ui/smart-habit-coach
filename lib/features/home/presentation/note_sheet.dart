@@ -207,10 +207,17 @@ class _NoteSheetState extends State<_NoteSheet> {
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         flex: 2,
-                        child: FilledButton(
-                          onPressed: () =>
-                              Navigator.of(context).pop(_controller.text),
-                          child: const Text('Save'),
+                        child: ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _controller,
+                          builder: (context, value, _) {
+                            final trimmed = value.text.trim();
+                            return FilledButton(
+                              onPressed: trimmed.isEmpty
+                                  ? null
+                                  : () => Navigator.of(context).pop(trimmed),
+                              child: const Text('Save'),
+                            );
+                          },
                         ),
                       ),
                     ],

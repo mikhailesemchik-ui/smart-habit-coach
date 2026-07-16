@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_spacing.dart';
 import '../domain/habit.dart';
 
 class SkipReasonSelection {
@@ -44,29 +45,41 @@ class _SkipReasonSheetState extends State<_SkipReasonSheet> {
   }
 
   void _save() {
-    Navigator.of(
-      context,
-    ).pop(SkipReasonSelection(reason: _selected, note: _noteController.text));
+    final trimmedNote = _noteController.text.trim();
+    Navigator.of(context).pop(
+      SkipReasonSelection(
+        reason: _selected,
+        note: trimmedNote.isEmpty ? null : trimmedNote,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final isKeyboardClosed = mediaQuery.viewInsets.bottom == 0;
+    final bottomInset = mediaQuery.viewInsets.bottom > 0
+        ? mediaQuery.viewInsets.bottom
+        : mediaQuery.viewPadding.bottom;
+    final footerBottomPadding =
+        bottomInset + (isKeyboardClosed ? AppSpacing.xl : AppSpacing.md);
+
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          top: AppSpacing.lg,
+          bottom: footerBottomPadding,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Why was it missed?', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             RadioGroup<HabitSkipReason>(
               groupValue: _selected,
               onChanged: (HabitSkipReason? value) {
@@ -85,7 +98,7 @@ class _SkipReasonSheetState extends State<_SkipReasonSheet> {
               ),
             ),
             if (_selected == HabitSkipReason.other) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               TextField(
                 controller: _noteController,
                 decoration: const InputDecoration(
@@ -95,23 +108,35 @@ class _SkipReasonSheetState extends State<_SkipReasonSheet> {
                 maxLines: 2,
               ),
             ],
-            const SizedBox(height: 12),
-            OverflowBar(
-              alignment: MainAxisAlignment.end,
-              spacing: 8,
+            const SizedBox(height: AppSpacing.lg),
+            Row(
               children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).pop(const SkipReasonSelection(reason: null)),
-                  child: const Text('Clear reason'),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: TextButton(
+                    onPressed: _selected == null
+                        ? null
+                        : () => Navigator.of(
+                            context,
+                          ).pop(const SkipReasonSelection(reason: null)),
+                    child: const Text('Clear reason'),
+                  ),
                 ),
-                FilledButton(onPressed: _save, child: const Text('Save')),
               ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _selected == null ? null : _save,
+                child: const Text('Save'),
+              ),
             ),
           ],
         ),

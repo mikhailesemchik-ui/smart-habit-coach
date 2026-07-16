@@ -46,8 +46,12 @@ class _PartialReasonSheetState extends State<_PartialReasonSheet> {
   }
 
   void _save() {
+    final trimmedNote = _noteController.text.trim();
     Navigator.of(context).pop(
-      PartialReasonSelection(reason: _selected, note: _noteController.text),
+      PartialReasonSelection(
+        reason: _selected,
+        note: trimmedNote.isEmpty ? null : trimmedNote,
+      ),
     );
   }
 
@@ -110,12 +114,17 @@ class _PartialReasonSheetState extends State<_PartialReasonSheet> {
                   child: const Text('Cancel'),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).pop(const PartialReasonSelection(reason: null)),
+                  onPressed: _selected == null
+                      ? null
+                      : () => Navigator.of(
+                          context,
+                        ).pop(const PartialReasonSelection(reason: null)),
                   child: const Text('Clear reason'),
                 ),
-                FilledButton(onPressed: _save, child: const Text('Save')),
+                FilledButton(
+                  onPressed: _selected == null ? null : _save,
+                  child: const Text('Save'),
+                ),
               ],
             ),
           ],

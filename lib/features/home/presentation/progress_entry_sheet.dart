@@ -60,15 +60,16 @@ class _ProgressEntrySheetState extends State<_ProgressEntrySheet> {
   void _save() {
     final raw = _controller.text.trim();
     if (raw.isEmpty) {
-      Navigator.of(context).pop(0.0);
-      return;
-    }
-    final parsed = double.tryParse(raw);
-    if (parsed == null) {
+      // Save requires an explicit value; use Reset to clear progress to 0.
       setState(() => _hasError = true);
       return;
     }
-    Navigator.of(context).pop(parsed < 0 ? 0.0 : parsed);
+    final parsed = double.tryParse(raw);
+    if (parsed == null || parsed < 0) {
+      setState(() => _hasError = true);
+      return;
+    }
+    Navigator.of(context).pop(parsed);
   }
 
   @override
@@ -163,7 +164,15 @@ class _ProgressEntrySheetState extends State<_ProgressEntrySheet> {
                   onPressed: () => Navigator.of(context).pop(0.0),
                   child: const Text('Reset'),
                 ),
-                FilledButton(onPressed: _save, child: const Text('Save')),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, _) {
+                    return FilledButton(
+                      onPressed: value.text.trim().isEmpty ? null : _save,
+                      child: const Text('Save'),
+                    );
+                  },
+                ),
               ],
             ),
           ],

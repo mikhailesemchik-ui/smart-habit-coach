@@ -104,6 +104,7 @@ void main() {
     await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Too tired'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -114,6 +115,7 @@ void main() {
     await tester.tap(find.text('Why was it missed?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Forgot'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 

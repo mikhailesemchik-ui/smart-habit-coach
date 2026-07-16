@@ -119,6 +119,7 @@ void main() {
     await tester.tap(find.text("Why wasn't the target reached?"));
     await tester.pumpAndSettle();
     await tester.tap(find.text('No time'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
